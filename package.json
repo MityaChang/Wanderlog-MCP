@@ -1,0 +1,43 @@
+{
+  "name": "wanderlog-itinerary-mcp",
+  "version": "0.1.0",
+  "description": "Local MCP server for planning Wanderlog itineraries through conversation",
+  "type": "module",
+  "bin": {
+    "wanderlog-itinerary-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run tests/unit tests/fixtures",
+    "test:unit": "vitest run tests/unit",
+    "test:fixtures": "vitest run tests/fixtures",
+    "test:integration": "vitest run tests/integration"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "wanderlog",
+    "travel",
+    "itinerary"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "trip": {
+    "id": 12345,
+    "name": "Japan Golden Route",
+    "destination": "Japan",
+    "startDate": "2026-04-01",
+    "endDate": "2026-04-14",
+    "slug": "japan-golden-route",
+    "forwardingEmail": "trip+12345@wanderlog.com",
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-04-01",
+        "title": "Tokyo Arrival",
+        "items": [
+          {
+            "type": "place",
+            "title": "Tokyo Station",
+            "note": "Pick up rail pass.",
+            "startTime": "10:00",
+            "endTime": "11:00"
+          },
+          {
+            "type": "note",
+            "title": "Transit note",
+            "note": "Use the airport express into the city."
+          }
+        ]
+      },
+      {
+        "day": 2,
+        "date": "2026-04-02",
+        "title": "Museums",
+        "items": []
+      }
+    ],
+    "generalItems": [
+      {
+        "type": "checklist",
+        "title": "Pre-trip checklist",
+        "note": "Passport, rail pass, offline maps."
+      }
+    ]
+  }
+}

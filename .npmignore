@@ -1,0 +1,11 @@
+src/
+tests/
+docs/
+.agents/
+.claude/
+.codex/
+.env
+.env.*
+!.env.example
+tsconfig.json
+vitest.config.ts

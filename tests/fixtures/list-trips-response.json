@@ -1,0 +1,16 @@
+{
+  "trips": [
+    {
+      "id": 12345,
+      "name": "Japan Golden Route",
+      "destination": "Japan",
+      "startDate": "2026-04-01",
+      "endDate": "2026-04-14",
+      "slug": "japan-golden-route"
+    },
+    {
+      "id": "demo-empty-fields",
+      "title": "Untimed Planning Ideas"
+    }
+  ]
+}
