@@ -14,6 +14,7 @@ import {
   formatTripForwardingEmailResult,
   formatTripListResult,
   formatTripUrlResult,
+  registerTripTools,
 } from "../../src/tools/trips.js";
 import type {
   CreatedTrip,
@@ -376,6 +377,71 @@ describe("formatDraftExportResult", () => {
     expect(result.structuredContent).toEqual({
       tripId: "lisbon-key",
       export: exportText,
+    });
+  });
+});
+
+describe("registerTripTools", () => {
+  it("passes the optional guide day filter to the client", async () => {
+    let guideRequest: { guideKey: string; options?: { day?: number } } | null =
+      null;
+    const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
+    const server = {
+      registerTool: (
+        name: string,
+        _definition: unknown,
+        handler: (input: unknown) => Promise<unknown>,
+      ) => {
+        handlers.set(name, handler);
+      },
+    };
+
+    registerTripTools(
+      server as never,
+      {
+        createTrip: async () => ({
+          id: "trip-key",
+          numericId: 1,
+          title: "Trip",
+          destination: "Vietnam",
+          startDate: "2026-06-01",
+          endDate: "2026-06-02",
+          url: "https://wanderlog.com/view/trip-key",
+        }),
+        getGuide: async (guideKey, options) => {
+          guideRequest = { guideKey, options };
+          return null;
+        },
+        getTrip: async () => null,
+        listTrips: async () => [],
+        searchGuides: async () => ({
+          geo: { id: 1, name: "Vietnam", country: null },
+          guides: [],
+        }),
+        searchPlaces: async () => [],
+      },
+      {
+        create: async (input) => ({
+          ...input,
+          draftId: "draft-1",
+          createdAt: "2026-07-04T00:00:00.000Z",
+          updatedAt: "2026-07-04T00:00:00.000Z",
+        }),
+        list: async () => [],
+        update: async () => sampleDraft,
+        delete: async () => sampleDraft,
+        exportTrip: async () => "Local Wanderlog drafts for trip trip-key",
+      },
+    );
+
+    await handlers.get("wanderlog_get_guide")?.({
+      guideKey: "guide-key",
+      day: 2,
+    });
+
+    expect(guideRequest).toEqual({
+      guideKey: "guide-key",
+      options: { day: 2 },
     });
   });
 });

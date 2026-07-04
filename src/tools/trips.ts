@@ -85,6 +85,12 @@ const getGuideSchema = {
     .string()
     .min(1)
     .describe("Guide key returned by wanderlog_search_guides."),
+  day: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Optional guide itinerary day number."),
 };
 
 const addPlaceSchema = {
@@ -337,8 +343,8 @@ export function registerTripTools(
         openWorldHint: true,
       },
     },
-    async ({ guideKey }) =>
-      formatTripDetailResult(await client.getGuide(guideKey)),
+    async ({ guideKey, day }) =>
+      formatTripDetailResult(await client.getGuide(guideKey, { day })),
   );
 
   server.registerTool(

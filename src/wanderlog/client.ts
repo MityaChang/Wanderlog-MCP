@@ -170,12 +170,16 @@ export class WanderlogClient {
     return mapGuideSearchResult(guidesForGeo, geo);
   }
 
-  async getGuide(guideKey: string): Promise<TripDetail | null> {
+  async getGuide(
+    guideKey: string,
+    options: { day?: number } = {},
+  ): Promise<TripDetail | null> {
     return mapTripDetail(
       await this.request(
         "GET",
         `/api/tripPlans/${encodeURIComponent(guideKey)}?clientSchemaVersion=2`,
       ),
+      options,
     );
   }
 

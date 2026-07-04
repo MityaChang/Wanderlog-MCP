@@ -459,4 +459,48 @@ describe("WanderlogClient", () => {
       "https://wanderlog.com/api/tripPlans/guide-key?clientSchemaVersion=2",
     );
   });
+
+  it("gets public guide content with an optional day filter", async () => {
+    const fetchImpl = async (): Promise<Response> => {
+      return Response.json({
+        tripPlan: {
+          key: "guide-key",
+          title: "Vietnam Loop",
+          itinerary: {
+            sections: [
+              {
+                heading: "Hanoi",
+                date: "2026-06-01",
+                blocks: [{ type: "place", title: "Old Quarter" }],
+              },
+              {
+                heading: "Hue",
+                date: "2026-06-02",
+                blocks: [{ type: "place", title: "Imperial City" }],
+              },
+            ],
+          },
+        },
+      });
+    };
+
+    const client = new WanderlogClient(
+      { wanderlogCookie: "s%3Aabc.signature" },
+      fetchImpl,
+    );
+
+    await expect(
+      client.getGuide("guide-key", { day: 2 }),
+    ).resolves.toMatchObject({
+      id: "guide-key",
+      title: "Vietnam Loop",
+      days: [
+        {
+          day: 2,
+          title: "Hue",
+          items: [{ title: "Imperial City" }],
+        },
+      ],
+    });
+  });
 });
