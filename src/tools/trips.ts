@@ -20,10 +20,13 @@ import type {
 
 type TripClient = Pick<
   WanderlogClient,
+  | "annotatePlace"
   | "createTrip"
+  | "editNote"
   | "getGuide"
   | "getTrip"
   | "listTrips"
+  | "removeNote"
   | "searchGuides"
   | "searchPlaces"
 >;
@@ -159,6 +162,33 @@ const addExpenseSchema = {
     .optional()
     .describe("Names of people splitting the expense."),
   note: z.string().min(1).optional().describe("Optional expense note."),
+};
+
+const annotatePlaceSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  place: z.string().min(1).describe("Existing place name to update."),
+  note: z.string().min(1).optional().describe("Inline place note."),
+  startTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional()
+    .describe("Optional start time in HH:mm."),
+  endTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional()
+    .describe("Optional end time in HH:mm."),
+};
+
+const editNoteSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  oldText: z.string().min(1).describe("Existing note text to replace."),
+  newText: z.string().describe("Replacement note text."),
+};
+
+const removeNoteSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  text: z.string().min(1).describe("Note text to match and remove."),
 };
 
 const listDraftsSchema = {
@@ -450,6 +480,55 @@ export function registerTripTools(
       };
       return formatDraftCreatedResult(await draftStore.create(input));
     },
+  );
+
+  server.registerTool(
+    "wanderlog_annotate_place",
+    {
+      title: "Annotate Wanderlog place",
+      description: "Update an existing Wanderlog place with a note or time.",
+      inputSchema: annotatePlaceSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      formatTripMutationResult(await client.annotatePlace(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_edit_note",
+    {
+      title: "Edit Wanderlog note",
+      description: "Replace text in one existing Wanderlog note.",
+      inputSchema: editNoteSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => formatTripMutationResult(await client.editNote(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_note",
+    {
+      title: "Remove Wanderlog note",
+      description: "Remove one existing Wanderlog note by matching its text.",
+      inputSchema: removeNoteSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => formatTripMutationResult(await client.removeNote(input)),
   );
 
   server.registerTool(
