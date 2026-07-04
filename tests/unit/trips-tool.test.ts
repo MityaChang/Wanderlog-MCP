@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import type { DraftItem } from "../../src/drafts/store.js";
 import {
   formatCreatedTripResult,
+  formatDraftCreatedResult,
+  formatDraftDeletedResult,
+  formatDraftExportResult,
+  formatDraftListResult,
+  formatDraftUpdatedResult,
   formatPlaceSearchResult,
   formatTripDetailResult,
   formatTripForwardingEmailResult,
@@ -232,5 +238,85 @@ describe("v0.2 itinerary-building formatters", () => {
       },
     ]);
     expect(result.structuredContent).toEqual({ places: [] });
+  });
+});
+
+// ── Draft formatter tests ─────────────────────────────────────────────────────
+
+const sampleDraft: DraftItem = {
+  draftId: "draft-1",
+  tripId: "lisbon-key",
+  kind: "place",
+  place: "Pasteis de Belem",
+  createdAt: "2026-07-04T00:00:00.000Z",
+  updatedAt: "2026-07-04T00:00:00.000Z",
+};
+
+describe("formatDraftCreatedResult", () => {
+  it("includes the local-only disclaimer and structured draft", () => {
+    const result = formatDraftCreatedResult(sampleDraft);
+
+    expect(result.content[0]).toMatchObject({
+      type: "text",
+      text: expect.stringContaining(
+        "Saved local Wanderlog draft draft-1 for trip lisbon-key.",
+      ),
+    });
+    expect(result.content[0]).toMatchObject({
+      type: "text",
+      text: expect.stringContaining(
+        "This is a local draft; it has not been written to Wanderlog yet.",
+      ),
+    });
+    expect(result.structuredContent).toEqual({ draft: sampleDraft });
+  });
+});
+
+describe("formatDraftListResult", () => {
+  it("lists drafts as readable text and structured content", () => {
+    const result = formatDraftListResult("lisbon-key", [sampleDraft]);
+
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    expect(
+      (result.content[0] as { type: "text"; text: string }).text,
+    ).toContain("draft-1");
+    expect(result.structuredContent).toEqual({ drafts: [sampleDraft] });
+  });
+
+  it("handles an empty draft list", () => {
+    const result = formatDraftListResult("lisbon-key", []);
+
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    expect(result.structuredContent).toEqual({ drafts: [] });
+  });
+});
+
+describe("formatDraftUpdatedResult", () => {
+  it("returns updated draft in structured content", () => {
+    const result = formatDraftUpdatedResult(sampleDraft);
+
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    expect((result.content[0] as { type: string; text: string }).text).toContain("Updated local draft draft-1");
+    expect(result.structuredContent).toEqual({ draft: sampleDraft });
+  });
+});
+
+describe("formatDraftDeletedResult", () => {
+  it("returns deleted draft in structured content", () => {
+    const result = formatDraftDeletedResult(sampleDraft);
+
+    expect(result.content[0]).toMatchObject({ type: "text" });
+    expect((result.content[0] as { type: string; text: string }).text).toContain("Deleted local draft draft-1");
+    expect(result.structuredContent).toEqual({ draft: sampleDraft });
+  });
+});
+
+describe("formatDraftExportResult", () => {
+  it("returns export text and structured content", () => {
+    const exportText = "Local Wanderlog drafts for trip lisbon-key\n- draft-1 [place] Pasteis de Belem";
+    const result = formatDraftExportResult("lisbon-key", exportText);
+
+    expect(result.content[0]).toMatchObject({ type: "text", text: exportText });
+    expect(result.structuredContent).toEqual({ tripId: "lisbon-key", export: exportText });
   });
 });

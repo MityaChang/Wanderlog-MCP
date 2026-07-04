@@ -7,6 +7,11 @@ local context. Add lodging with wanderlog_add_hotel when requested. Add a
 pre-trip checklist or day checklist with wanderlog_add_checklist for documents,
 tickets, currency, offline maps, reservations, and day-specific tasks.
 
+The add, update, delete, and expense tools operate on local drafts stored in
+a user-local JSON file. Local drafts are not yet live Wanderlog writes.
+Use wanderlog_list_drafts to inspect the current draft state and
+wanderlog_export_drafts to serialize it for review or handoff.
+
 Organize itineraries by day. Interleave places with practical notes instead of
 returning a flat list of pins. Ask for clarification before deleting or editing
 when a natural-language reference matches multiple items.`;

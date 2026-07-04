@@ -2,6 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
+import type {
+  CreateDraftInput,
+  DraftItem,
+  DraftItineraryStore,
+} from "../drafts/store.js";
 import type { WanderlogClient } from "../wanderlog/client.js";
 import type {
   CreatedTrip,
@@ -14,14 +19,7 @@ import type {
 
 type TripClient = Pick<
   WanderlogClient,
-  | "addChecklist"
-  | "addHotel"
-  | "addNote"
-  | "addPlace"
-  | "createTrip"
-  | "getTrip"
-  | "listTrips"
-  | "searchPlaces"
+  "createTrip" | "getTrip" | "listTrips" | "searchPlaces"
 >;
 
 const tripIdSchema = {
@@ -122,7 +120,69 @@ const addChecklistSchema = {
     .describe("Optional day, date, or ISO date."),
 };
 
-export function registerTripTools(server: McpServer, client: TripClient): void {
+const addExpenseSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  title: z.string().min(1).describe("Expense title."),
+  amount: z.number().positive().describe("Expense amount."),
+  currency: z.string().length(3).describe("ISO 4217 currency code, e.g. USD."),
+  paidBy: z.string().min(1).describe("Name of the person who paid."),
+  splitWith: z
+    .array(z.string().min(1))
+    .optional()
+    .describe("Names of people splitting the expense."),
+  note: z.string().min(1).optional().describe("Optional expense note."),
+};
+
+const listDraftsSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+};
+
+const updateDraftSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  draftId: z.string().min(1).describe("Draft ID to update."),
+  place: z.string().min(1).optional(),
+  day: z.string().min(1).optional(),
+  note: z.string().min(1).optional(),
+  startTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
+  endTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
+  text: z.string().min(1).optional(),
+  hotel: z.string().min(1).optional(),
+  checkIn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  checkOut: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  title: z.string().min(1).optional(),
+  items: z.array(z.string().min(1)).optional(),
+  amount: z.number().positive().optional(),
+  currency: z.string().length(3).optional(),
+  paidBy: z.string().min(1).optional(),
+  splitWith: z.array(z.string().min(1)).optional(),
+};
+
+const deleteDraftSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  draftId: z.string().min(1).describe("Draft ID to delete."),
+};
+
+const exportDraftsSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+};
+
+export function registerTripTools(
+  server: McpServer,
+  client: TripClient,
+  draftStore: DraftItineraryStore,
+): void {
   server.registerTool(
     "wanderlog_list_trips",
     {
@@ -225,52 +285,175 @@ export function registerTripTools(server: McpServer, client: TripClient): void {
     "wanderlog_add_place",
     {
       title: "Add Wanderlog place",
-      description: "Add a place to a day or unscheduled trip list.",
+      description: "Save a place draft for a day or unscheduled trip list.",
       inputSchema: addPlaceSchema,
-      annotations: mutationAnnotations,
+      annotations: localDraftAnnotations,
     },
-    async (input) => formatTripMutationResult(await client.addPlace(input)),
+    async ({ tripId, place, day, note, startTime, endTime }) => {
+      const input: CreateDraftInput = {
+        kind: "place",
+        tripId,
+        place,
+        ...(day !== undefined && { day }),
+        ...(note !== undefined && { note }),
+        ...(startTime !== undefined && { startTime }),
+        ...(endTime !== undefined && { endTime }),
+      };
+      return formatDraftCreatedResult(await draftStore.create(input));
+    },
   );
 
   server.registerTool(
     "wanderlog_add_note",
     {
       title: "Add Wanderlog note",
-      description: "Add a practical note to a day or unscheduled trip list.",
+      description: "Save a practical note draft for a day or unscheduled trip list.",
       inputSchema: addNoteSchema,
-      annotations: mutationAnnotations,
+      annotations: localDraftAnnotations,
     },
-    async (input) => formatTripMutationResult(await client.addNote(input)),
+    async ({ tripId, text, day }) => {
+      const input: CreateDraftInput = {
+        kind: "note",
+        tripId,
+        text,
+        ...(day !== undefined && { day }),
+      };
+      return formatDraftCreatedResult(await draftStore.create(input));
+    },
   );
 
   server.registerTool(
     "wanderlog_add_hotel",
     {
       title: "Add Wanderlog hotel",
-      description: "Add lodging with check-in and check-out dates.",
+      description: "Save a lodging draft with check-in and check-out dates.",
       inputSchema: addHotelSchema,
-      annotations: mutationAnnotations,
+      annotations: localDraftAnnotations,
     },
-    async (input) => formatTripMutationResult(await client.addHotel(input)),
+    async ({ tripId, hotel, checkIn, checkOut }) => {
+      const input: CreateDraftInput = {
+        kind: "hotel",
+        tripId,
+        hotel,
+        ...(checkIn !== undefined && { checkIn }),
+        ...(checkOut !== undefined && { checkOut }),
+      };
+      return formatDraftCreatedResult(await draftStore.create(input));
+    },
   );
 
   server.registerTool(
     "wanderlog_add_checklist",
     {
       title: "Add Wanderlog checklist",
-      description: "Add a trip-level or day-level checklist.",
+      description: "Save a trip-level or day-level checklist draft.",
       inputSchema: addChecklistSchema,
-      annotations: mutationAnnotations,
+      annotations: localDraftAnnotations,
     },
-    async (input) => formatTripMutationResult(await client.addChecklist(input)),
+    async ({ tripId, items, title, day }) => {
+      const input: CreateDraftInput = {
+        kind: "checklist",
+        tripId,
+        title: title ?? "Checklist",
+        items,
+        ...(day !== undefined && { day }),
+      };
+      return formatDraftCreatedResult(await draftStore.create(input));
+    },
+  );
+
+  server.registerTool(
+    "wanderlog_add_expense",
+    {
+      title: "Add Wanderlog expense",
+      description: "Save an expense draft for a trip.",
+      inputSchema: addExpenseSchema,
+      annotations: localDraftAnnotations,
+    },
+    async ({ tripId, title, amount, currency, paidBy, splitWith, note }) => {
+      const input: CreateDraftInput = {
+        kind: "expense",
+        tripId,
+        title,
+        amount,
+        currency,
+        paidBy,
+        splitWith: splitWith ?? [],
+        ...(note !== undefined && { note }),
+      };
+      return formatDraftCreatedResult(await draftStore.create(input));
+    },
+  );
+
+  server.registerTool(
+    "wanderlog_list_drafts",
+    {
+      title: "List Wanderlog drafts",
+      description: "List all local drafts for a trip.",
+      inputSchema: listDraftsSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ tripId }) =>
+      formatDraftListResult(tripId, await draftStore.list(tripId)),
+  );
+
+  server.registerTool(
+    "wanderlog_update_draft",
+    {
+      title: "Update Wanderlog draft",
+      description: "Update a local draft by draft ID.",
+      inputSchema: updateDraftSchema,
+      annotations: localDraftAnnotations,
+    },
+    async ({ tripId, draftId, ...patch }) =>
+      formatDraftUpdatedResult(await draftStore.update(tripId, draftId, patch)),
+  );
+
+  server.registerTool(
+    "wanderlog_delete_draft",
+    {
+      title: "Delete Wanderlog draft",
+      description: "Delete a local draft by draft ID.",
+      inputSchema: deleteDraftSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ tripId, draftId }) =>
+      formatDraftDeletedResult(await draftStore.delete(tripId, draftId)),
+  );
+
+  server.registerTool(
+    "wanderlog_export_drafts",
+    {
+      title: "Export Wanderlog drafts",
+      description: "Export all local drafts for a trip as a readable summary.",
+      inputSchema: exportDraftsSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ tripId }) =>
+      formatDraftExportResult(tripId, await draftStore.exportTrip(tripId)),
   );
 }
 
-const mutationAnnotations = {
+const localDraftAnnotations = {
   readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: false,
-  openWorldHint: true,
+  openWorldHint: false,
 };
 
 export function formatCreatedTripResult(trip: CreatedTrip): CallToolResult {
@@ -442,6 +625,80 @@ export function formatTripForwardingEmailResult(
     },
   };
 }
+
+export function formatDraftCreatedResult(draft: DraftItem): CallToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          `Saved local Wanderlog draft ${draft.draftId} for trip ${draft.tripId}.\n` +
+          "This is a local draft; it has not been written to Wanderlog yet.",
+      },
+    ],
+    structuredContent: { draft },
+  };
+}
+
+export function formatDraftListResult(
+  tripId: string,
+  drafts: DraftItem[],
+): CallToolResult {
+  if (drafts.length === 0) {
+    return {
+      content: [
+        { type: "text", text: `No local drafts found for trip ${tripId}.` },
+      ],
+      structuredContent: { drafts },
+    };
+  }
+
+  const lines = drafts.map((d) => `- ${d.draftId} [${d.kind}]`);
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Found ${drafts.length} local draft(s) for trip ${tripId}:\n${lines.join("\n")}`,
+      },
+    ],
+    structuredContent: { drafts },
+  };
+}
+
+export function formatDraftUpdatedResult(draft: DraftItem): CallToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Updated local draft ${draft.draftId} for trip ${draft.tripId}.`,
+      },
+    ],
+    structuredContent: { draft },
+  };
+}
+
+export function formatDraftDeletedResult(draft: DraftItem): CallToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Deleted local draft ${draft.draftId} for trip ${draft.tripId}.`,
+      },
+    ],
+    structuredContent: { draft },
+  };
+}
+
+export function formatDraftExportResult(
+  tripId: string,
+  exportText: string,
+): CallToolResult {
+  return {
+    content: [{ type: "text", text: exportText }],
+    structuredContent: { tripId, export: exportText },
+  };
+}
+
 
 function formatDaySection(day: TripDay): string {
   const heading = [`Day ${day.day}`, day.title, day.date]

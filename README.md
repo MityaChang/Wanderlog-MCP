@@ -5,9 +5,9 @@ Local MCP server for planning Wanderlog itineraries through conversation.
 This project lets an MCP-compatible assistant connect to your local Wanderlog
 browser session and use tools for trip planning. Implemented tools list trips,
 read itineraries, create empty trips, search real places, return shareable URLs,
-and expose the v0.2 add-place/note/hotel/checklist contracts. The add tools are
-registered so agents know the intended workflow, but live itinerary block writes
-still require the next ShareDB mutation transport slice.
+and add, update, delete, and manage expenses on local draft itinerary blocks.
+Local draft writes are stored in a user-local JSON file and are not yet live
+Wanderlog itinerary writes; live writes still require a future mutation transport.
 
 Wanderlog does not provide a public API for this workflow. Treat the
 `connect.sid` cookie like a password, and do not commit it to this repository.
@@ -226,18 +226,27 @@ your account has no trips, it should say no Wanderlog trips were found.
 
 ## Implemented Tools
 
-| Tool                                  | What it does                                                 |
-| ------------------------------------- | ------------------------------------------------------------ |
-| `wanderlog_list_trips`                | Lists trips in your Wanderlog account.                       |
-| `wanderlog_get_trip`                  | Reads a full trip itinerary, optionally filtered to one day. |
-| `wanderlog_get_trip_url`              | Returns a shareable Wanderlog trip link.                     |
-| `wanderlog_get_trip_forwarding_email` | Returns a trip import email address when available.          |
-| `wanderlog_create_trip`               | Creates an empty trip from destination and dates.            |
-| `wanderlog_search_places`             | Finds real places near a latitude and longitude.             |
-| `wanderlog_add_place`                 | Contract for adding a place; mutation transport pending.     |
-| `wanderlog_add_note`                  | Contract for adding a note; mutation transport pending.      |
-| `wanderlog_add_hotel`                 | Contract for adding lodging; mutation transport pending.     |
-| `wanderlog_add_checklist`             | Contract for adding checklists; mutation transport pending.  |
+| Tool                                  | What it does                                                         |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| `wanderlog_list_trips`                | Lists trips in your Wanderlog account.                               |
+| `wanderlog_get_trip`                  | Reads a full trip itinerary, optionally filtered to one day.         |
+| `wanderlog_get_trip_url`              | Returns a shareable Wanderlog trip link.                             |
+| `wanderlog_get_trip_forwarding_email` | Returns a trip import email address when available.                  |
+| `wanderlog_create_trip`               | Creates an empty trip from destination and dates.                    |
+| `wanderlog_search_places`             | Finds real places near a latitude and longitude.                     |
+| `wanderlog_add_place`                 | Adds a place to a local draft itinerary.                             |
+| `wanderlog_add_note`                  | Adds a note to a local draft itinerary.                              |
+| `wanderlog_add_hotel`                 | Adds lodging to a local draft itinerary.                             |
+| `wanderlog_add_checklist`             | Adds a checklist to a local draft itinerary.                         |
+| `wanderlog_update_draft`              | Updates an item in a local draft itinerary.                          |
+| `wanderlog_delete_draft`              | Deletes an item from a local draft itinerary.                        |
+| `wanderlog_add_expense`               | Adds an expense entry to a local draft itinerary.                    |
+| `wanderlog_list_drafts`               | Lists all items currently held in the local draft store.             |
+| `wanderlog_export_drafts`             | Exports the local draft store as JSON for review or handoff.         |
+
+> **Note:** add, expense, list draft, update draft, delete draft, and export
+> draft tools operate on local drafts in a user-local JSON file. Live Wanderlog itinerary
+> writes still require a future mutation transport.
 
 ## Example Prompts
 
@@ -263,19 +272,23 @@ Create a private Lisbon trip from 2026-06-01 to 2026-06-05.
 Search for museums near latitude 38.7223 and longitude -9.1393.
 ```
 
-Planned capabilities for later releases:
-
 ```text
-Create a five-day Tokyo itinerary with ramen spots, museums, transit notes, and
-a pre-trip checklist, then write every block into Wanderlog.
+Add a ramen restaurant to my Tokyo draft for day 1.
 ```
 
 ```text
-Add booking notes between each stop in my Barcelona trip.
+Show me everything in my local draft.
 ```
 
 ```text
-Show my Lisbon itinerary for day 3 and add a hotel near the waterfront.
+Export my local draft as JSON.
+```
+
+Planned capabilities for later releases — live Wanderlog itinerary writes still
+require a future mutation transport:
+
+```text
+Write every block from my local draft into Wanderlog.
 ```
 
 ## Troubleshooting
