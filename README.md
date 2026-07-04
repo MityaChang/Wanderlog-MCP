@@ -5,7 +5,8 @@ Local MCP server for planning Wanderlog itineraries through conversation.
 This project lets an MCP-compatible assistant connect to your local Wanderlog
 browser session and use tools for trip planning. Implemented tools list trips,
 read itineraries, create empty trips, search real places, return shareable URLs,
-and add, update, delete, and manage expenses on local draft itinerary blocks.
+search public Wanderlog guides, return shareable URLs, and add, update, delete,
+and manage expenses on local draft itinerary blocks.
 Local draft writes are stored in a user-local JSON file and are not yet live
 Wanderlog itinerary writes; live writes still require a future mutation transport.
 
@@ -226,23 +227,23 @@ your account has no trips, it should say no Wanderlog trips were found.
 
 ## Implemented Tools
 
-| Tool                                  | What it does                                                         |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `wanderlog_list_trips`                | Lists trips in your Wanderlog account.                               |
-| `wanderlog_get_trip`                  | Reads a full trip itinerary, optionally filtered to one day.         |
-| `wanderlog_get_trip_url`              | Returns a shareable Wanderlog trip link.                             |
-| `wanderlog_get_trip_forwarding_email` | Returns a trip import email address when available.                  |
-| `wanderlog_create_trip`               | Creates an empty trip from destination and dates.                    |
-| `wanderlog_search_places`             | Finds real places near a latitude and longitude.                     |
-| `wanderlog_add_place`                 | Adds a place to a local draft itinerary.                             |
-| `wanderlog_add_note`                  | Adds a note to a local draft itinerary.                              |
-| `wanderlog_add_hotel`                 | Adds lodging to a local draft itinerary.                             |
-| `wanderlog_add_checklist`             | Adds a checklist to a local draft itinerary.                         |
-| `wanderlog_update_draft`              | Updates an item in a local draft itinerary.                          |
-| `wanderlog_delete_draft`              | Deletes an item from a local draft itinerary.                        |
-| `wanderlog_add_expense`               | Adds an expense entry to a local draft itinerary.                    |
-| `wanderlog_list_drafts`               | Lists all items currently held in the local draft store.             |
-| `wanderlog_export_drafts`             | Exports the local draft store as JSON for review or handoff.         |
+| Tool                                  | What it does                                                 |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `wanderlog_list_trips`                | Lists trips in your Wanderlog account.                       |
+| `wanderlog_get_trip`                  | Reads a full trip itinerary, optionally filtered to one day. |
+| `wanderlog_get_trip_url`              | Returns a shareable Wanderlog trip link.                     |
+| `wanderlog_get_trip_forwarding_email` | Returns a trip import email address when available.          |
+| `wanderlog_create_trip`               | Creates an empty trip from destination and dates.            |
+| `wanderlog_search_places`             | Finds real places near a latitude and longitude.             |
+| `wanderlog_add_place`                 | Adds a place to a local draft itinerary.                     |
+| `wanderlog_add_note`                  | Adds a note to a local draft itinerary.                      |
+| `wanderlog_add_hotel`                 | Adds lodging to a local draft itinerary.                     |
+| `wanderlog_add_checklist`             | Adds a checklist to a local draft itinerary.                 |
+| `wanderlog_update_draft`              | Updates an item in a local draft itinerary.                  |
+| `wanderlog_delete_draft`              | Deletes an item from a local draft itinerary.                |
+| `wanderlog_add_expense`               | Adds an expense entry to a local draft itinerary.            |
+| `wanderlog_list_drafts`               | Lists all items currently held in the local draft store.     |
+| `wanderlog_export_drafts`             | Exports the local draft store as JSON for review or handoff. |
 
 > **Note:** add, expense, list draft, update draft, delete draft, and export
 > draft tools operate on local drafts in a user-local JSON file. Live Wanderlog itinerary

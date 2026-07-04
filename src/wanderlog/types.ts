@@ -58,6 +58,33 @@ export interface PlaceSearchResult {
   description: string | null;
 }
 
+export interface SearchGuidesInput {
+  destination: string;
+}
+
+export interface GuideSearchResult {
+  geo: GuideGeo;
+  guides: GuideSummary[];
+}
+
+export interface GuideGeo {
+  id: number;
+  name: string;
+  country: string | null;
+}
+
+export interface GuideSummary {
+  id: string;
+  title: string;
+  author: string;
+  placeCount: number | null;
+  viewCount: number | null;
+  likeCount: number | null;
+  blurb: string | null;
+  editedAt: string | null;
+  url: string;
+}
+
 export interface TripMutationResult {
   tripId: string;
   message: string;
@@ -99,6 +126,27 @@ export interface RawWanderlogGeo {
   stateName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  popularity?: number | null;
+}
+
+export interface RawWanderlogGuide {
+  key?: string | null;
+  title?: string | null;
+  user?: {
+    username?: string | null;
+  } | null;
+  placeCount?: number | null;
+  viewCount?: number | null;
+  likeCount?: number | null;
+  authorBlurb?: string | null;
+  editedAt?: string | null;
+}
+
+export interface RawWanderlogGuidesForGeo {
+  id?: number | null;
+  name?: string | null;
+  countryName?: string | null;
+  guides?: RawWanderlogGuide[];
 }
 
 export interface RawWanderlogPlaceSuggestion {
@@ -181,4 +229,10 @@ export interface WanderlogCreateTripResponse {
 
 export interface WanderlogPlaceAutocompleteResponse {
   data?: RawWanderlogPlaceSuggestion[];
+}
+
+export interface WanderlogGuidesForGeoResponse {
+  data?: {
+    geoWithGoodGuides?: RawWanderlogGuidesForGeo;
+  };
 }

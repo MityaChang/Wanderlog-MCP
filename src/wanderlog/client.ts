@@ -5,13 +5,17 @@ import type {
   AddPlaceInput,
   CreatedTrip,
   CreateTripInput,
+  GuideSearchResult,
   PlaceSearchResult,
   RawWanderlogGeo,
+  RawWanderlogGuide,
+  RawWanderlogGuidesForGeo,
   RawWanderlogPlaceSuggestion,
   RawWanderlogTrip,
   RawWanderlogTripDay,
   RawWanderlogTripItem,
   RawWanderlogTripSection,
+  SearchGuidesInput,
   SearchPlacesInput,
   TripDay,
   TripDetail,
@@ -20,6 +24,7 @@ import type {
   TripSummary,
   WanderlogCreateTripResponse,
   WanderlogGeoAutocompleteResponse,
+  WanderlogGuidesForGeoResponse,
   WanderlogPlaceAutocompleteResponse,
   WanderlogTripDetailResponse,
   WanderlogTripListResponse,
@@ -132,6 +137,46 @@ export class WanderlogClient {
           "Untitled place",
         description: place.structured_formatting?.secondary_text ?? null,
       }));
+  }
+
+  async searchGuides(input: SearchGuidesInput): Promise<GuideSearchResult> {
+    const geos = mapGeos(
+      await this.request(
+        "GET",
+        `/api/geo/autocomplete/${encodeURIComponent(input.destination)}`,
+      ),
+    ).sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
+    const [geo] = geos;
+
+    if (!geo) {
+      throw new Error(
+        `No Wanderlog destination found for ${input.destination}.`,
+      );
+    }
+
+    const raw = (await this.request(
+      "GET",
+      `/api/tripPlans/browse/guides/${encodeURIComponent(String(geo.id))}`,
+    )) as WanderlogGuidesForGeoResponse;
+    const guidesForGeo = raw.data?.geoWithGoodGuides;
+
+    if (!guidesForGeo) {
+      return {
+        geo: { id: geo.id, name: geo.name, country: geo.countryName ?? null },
+        guides: [],
+      };
+    }
+
+    return mapGuideSearchResult(guidesForGeo, geo);
+  }
+
+  async getGuide(guideKey: string): Promise<TripDetail | null> {
+    return mapTripDetail(
+      await this.request(
+        "GET",
+        `/api/tripPlans/${encodeURIComponent(guideKey)}?clientSchemaVersion=2`,
+      ),
+    );
   }
 
   async addPlace(input: AddPlaceInput): Promise<TripMutationResult> {
@@ -333,6 +378,43 @@ function mapGeos(
       typeof geo.name === "string" &&
       geo.name.length > 0,
   );
+}
+
+function mapGuideSearchResult(
+  raw: RawWanderlogGuidesForGeo,
+  resolvedGeo: RawWanderlogGeo & { id: number; name: string },
+): GuideSearchResult {
+  return {
+    geo: {
+      id: typeof raw.id === "number" ? raw.id : resolvedGeo.id,
+      name: raw.name ?? resolvedGeo.name,
+      country: raw.countryName ?? resolvedGeo.countryName ?? null,
+    },
+    guides: (raw.guides ?? [])
+      .filter(
+        (
+          guide,
+        ): guide is RawWanderlogGuide & { key: string; title: string } => {
+          return (
+            typeof guide.key === "string" &&
+            guide.key.length > 0 &&
+            typeof guide.title === "string" &&
+            guide.title.length > 0
+          );
+        },
+      )
+      .map((guide) => ({
+        id: guide.key,
+        title: guide.title,
+        author: guide.user?.username ?? "unknown",
+        placeCount: guide.placeCount ?? null,
+        viewCount: guide.viewCount ?? null,
+        likeCount: guide.likeCount ?? null,
+        blurb: guide.authorBlurb ?? null,
+        editedAt: guide.editedAt ?? null,
+        url: `https://wanderlog.com/view/${guide.key}`,
+      })),
+  };
 }
 
 function formatGeoLabel(geo: RawWanderlogGeo & { name: string }): string {

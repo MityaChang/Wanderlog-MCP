@@ -15,8 +15,13 @@ describe("createServer", () => {
           endDate: "2026-01-02",
           url: "https://wanderlog.com/view/test-trip",
         }),
+        getGuide: async () => null,
         getTrip: async () => null,
         listTrips: async () => [],
+        searchGuides: async () => ({
+          geo: { id: 1, name: "Test destination", country: null },
+          guides: [],
+        }),
         searchPlaces: async () => [],
       },
       {
@@ -44,7 +49,8 @@ describe("createServer", () => {
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
         }),
-        exportTrip: async (tripId) => `Local Wanderlog drafts for trip ${tripId}`,
+        exportTrip: async (tripId) =>
+          `Local Wanderlog drafts for trip ${tripId}`,
       },
     );
 

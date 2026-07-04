@@ -8,6 +8,7 @@ import {
   formatDraftExportResult,
   formatDraftListResult,
   formatDraftUpdatedResult,
+  formatGuideSearchResult,
   formatPlaceSearchResult,
   formatTripDetailResult,
   formatTripForwardingEmailResult,
@@ -16,6 +17,7 @@ import {
 } from "../../src/tools/trips.js";
 import type {
   CreatedTrip,
+  GuideSearchResult,
   PlaceSearchResult,
   TripDetail,
   TripSummary,
@@ -239,6 +241,55 @@ describe("v0.2 itinerary-building formatters", () => {
     ]);
     expect(result.structuredContent).toEqual({ places: [] });
   });
+
+  it("formats guide search results with guide keys for follow-up reads", () => {
+    const guides: GuideSearchResult = {
+      geo: { id: 86655, name: "Vietnam", country: null },
+      guides: [
+        {
+          id: "guide-key",
+          title: "Vietnam Loop",
+          author: "traveler",
+          placeCount: 42,
+          viewCount: 1234,
+          likeCount: 56,
+          blurb: "A practical route.",
+          editedAt: "2026-05-03T02:05:37+00:00",
+          url: "https://wanderlog.com/view/guide-key",
+        },
+      ],
+    };
+
+    const result = formatGuideSearchResult("Vietnam", guides);
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text:
+          'Found 1 Wanderlog guide for "Vietnam" (Vietnam):\n' +
+          "1. Vietnam Loop by traveler - 42 places, 1234 views [guide_key: guide-key]\n" +
+          "A practical route.",
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ guides });
+  });
+
+  it("formats empty guide search results", () => {
+    const guides: GuideSearchResult = {
+      geo: { id: 999, name: "Smalltown", country: "Portugal" },
+      guides: [],
+    };
+
+    const result = formatGuideSearchResult("Smalltown", guides);
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: 'No public Wanderlog guides found for "Smalltown" (Smalltown, Portugal).',
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ guides });
+  });
 });
 
 // ── Draft formatter tests ─────────────────────────────────────────────────────
@@ -296,7 +347,9 @@ describe("formatDraftUpdatedResult", () => {
     const result = formatDraftUpdatedResult(sampleDraft);
 
     expect(result.content[0]).toMatchObject({ type: "text" });
-    expect((result.content[0] as { type: string; text: string }).text).toContain("Updated local draft draft-1");
+    expect(
+      (result.content[0] as { type: string; text: string }).text,
+    ).toContain("Updated local draft draft-1");
     expect(result.structuredContent).toEqual({ draft: sampleDraft });
   });
 });
@@ -306,17 +359,23 @@ describe("formatDraftDeletedResult", () => {
     const result = formatDraftDeletedResult(sampleDraft);
 
     expect(result.content[0]).toMatchObject({ type: "text" });
-    expect((result.content[0] as { type: string; text: string }).text).toContain("Deleted local draft draft-1");
+    expect(
+      (result.content[0] as { type: string; text: string }).text,
+    ).toContain("Deleted local draft draft-1");
     expect(result.structuredContent).toEqual({ draft: sampleDraft });
   });
 });
 
 describe("formatDraftExportResult", () => {
   it("returns export text and structured content", () => {
-    const exportText = "Local Wanderlog drafts for trip lisbon-key\n- draft-1 [place] Pasteis de Belem";
+    const exportText =
+      "Local Wanderlog drafts for trip lisbon-key\n- draft-1 [place] Pasteis de Belem";
     const result = formatDraftExportResult("lisbon-key", exportText);
 
     expect(result.content[0]).toMatchObject({ type: "text", text: exportText });
-    expect(result.structuredContent).toEqual({ tripId: "lisbon-key", export: exportText });
+    expect(result.structuredContent).toEqual({
+      tripId: "lisbon-key",
+      export: exportText,
+    });
   });
 });

@@ -280,4 +280,183 @@ describe("WanderlogClient", () => {
       language: "en",
     });
   });
+
+  it("searches public Wanderlog guides by resolving a destination geo", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = async (
+      url: string,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      calls.push({ url, init });
+
+      if (url.endsWith("/api/geo/autocomplete/Vietnam")) {
+        return Response.json({
+          data: [
+            {
+              id: 86655,
+              name: "Vietnam",
+              countryName: null,
+              popularity: 100,
+            },
+          ],
+        });
+      }
+
+      return Response.json({
+        data: {
+          geoWithGoodGuides: {
+            id: 86655,
+            name: "Vietnam",
+            countryName: null,
+            guides: [
+              {
+                key: "guide-key",
+                title: "Vietnam Loop",
+                user: { username: "traveler" },
+                placeCount: 42,
+                viewCount: 1234,
+                likeCount: 56,
+                authorBlurb: "A practical route.",
+                editedAt: "2026-05-03T02:05:37+00:00",
+              },
+            ],
+          },
+        },
+      });
+    };
+
+    const client = new WanderlogClient(
+      { wanderlogCookie: "s%3Aabc.signature" },
+      fetchImpl,
+    );
+
+    await expect(
+      client.searchGuides({ destination: "Vietnam" }),
+    ).resolves.toEqual({
+      geo: { id: 86655, name: "Vietnam", country: null },
+      guides: [
+        {
+          id: "guide-key",
+          title: "Vietnam Loop",
+          author: "traveler",
+          placeCount: 42,
+          viewCount: 1234,
+          likeCount: 56,
+          blurb: "A practical route.",
+          editedAt: "2026-05-03T02:05:37+00:00",
+          url: "https://wanderlog.com/view/guide-key",
+        },
+      ],
+    });
+
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://wanderlog.com/api/geo/autocomplete/Vietnam",
+      "https://wanderlog.com/api/tripPlans/browse/guides/86655",
+    ]);
+  });
+
+  it("keeps the resolved destination geo when the guides response omits its id", async () => {
+    const fetchImpl = async (url: string): Promise<Response> => {
+      if (url.endsWith("/api/geo/autocomplete/Vietnam")) {
+        return Response.json({
+          data: [
+            {
+              id: 86655,
+              name: "Vietnam",
+              countryName: null,
+              popularity: 100,
+            },
+          ],
+        });
+      }
+
+      return Response.json({
+        data: {
+          geoWithGoodGuides: {
+            name: "Vietnam",
+            countryName: null,
+            guides: [],
+          },
+        },
+      });
+    };
+
+    const client = new WanderlogClient(
+      { wanderlogCookie: "s%3Aabc.signature" },
+      fetchImpl,
+    );
+
+    await expect(
+      client.searchGuides({ destination: "Vietnam" }),
+    ).resolves.toEqual({
+      geo: { id: 86655, name: "Vietnam", country: null },
+      guides: [],
+    });
+  });
+
+  it("throws a clear error when no guide destination geo is found", async () => {
+    const fetchImpl = async (): Promise<Response> =>
+      Response.json({ data: [] });
+    const client = new WanderlogClient(
+      { wanderlogCookie: "s%3Aabc.signature" },
+      fetchImpl,
+    );
+
+    await expect(
+      client.searchGuides({ destination: "Nowhere" }),
+    ).rejects.toThrow("No Wanderlog destination found for Nowhere.");
+  });
+
+  it("gets public guide content without appending the trip-view registration parameter", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = async (
+      url: string,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      calls.push({ url, init });
+
+      return Response.json({
+        tripPlan: {
+          key: "guide-key",
+          title: "Vietnam Loop",
+          itinerary: {
+            sections: [
+              {
+                heading: "Hanoi",
+                date: "2026-06-01",
+                blocks: [
+                  {
+                    type: "place",
+                    title: "Old Quarter",
+                    note: "Start early.",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      });
+    };
+
+    const client = new WanderlogClient(
+      { wanderlogCookie: "s%3Aabc.signature" },
+      fetchImpl,
+    );
+
+    await expect(client.getGuide("guide-key")).resolves.toMatchObject({
+      id: "guide-key",
+      title: "Vietnam Loop",
+      days: [
+        {
+          day: 1,
+          title: "Hanoi",
+          items: [{ title: "Old Quarter", note: "Start early." }],
+        },
+      ],
+    });
+
+    expect(calls[0]?.url).toBe(
+      "https://wanderlog.com/api/tripPlans/guide-key?clientSchemaVersion=2",
+    );
+  });
 });

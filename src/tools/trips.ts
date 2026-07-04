@@ -10,6 +10,7 @@ import type {
 import type { WanderlogClient } from "../wanderlog/client.js";
 import type {
   CreatedTrip,
+  GuideSearchResult,
   PlaceSearchResult,
   TripDay,
   TripDetail,
@@ -19,7 +20,12 @@ import type {
 
 type TripClient = Pick<
   WanderlogClient,
-  "createTrip" | "getTrip" | "listTrips" | "searchPlaces"
+  | "createTrip"
+  | "getGuide"
+  | "getTrip"
+  | "listTrips"
+  | "searchGuides"
+  | "searchPlaces"
 >;
 
 const tripIdSchema = {
@@ -63,6 +69,22 @@ const searchPlacesSchema = {
     .describe("What to search for, for example sushi restaurant or museum."),
   latitude: z.number().describe("Latitude used to bias place search."),
   longitude: z.number().describe("Longitude used to bias place search."),
+};
+
+const searchGuidesSchema = {
+  destination: z
+    .string()
+    .min(1)
+    .describe(
+      "Destination to search public Wanderlog guides for, for example Vietnam or Kyoto.",
+    ),
+};
+
+const getGuideSchema = {
+  guideKey: z
+    .string()
+    .min(1)
+    .describe("Guide key returned by wanderlog_search_guides."),
 };
 
 const addPlaceSchema = {
@@ -282,6 +304,44 @@ export function registerTripTools(
   );
 
   server.registerTool(
+    "wanderlog_search_guides",
+    {
+      title: "Search Wanderlog guides",
+      description: "Find public Wanderlog guides for a destination.",
+      inputSchema: searchGuidesSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      formatGuideSearchResult(
+        input.destination,
+        await client.searchGuides(input),
+      ),
+  );
+
+  server.registerTool(
+    "wanderlog_get_guide",
+    {
+      title: "Get Wanderlog guide",
+      description:
+        "Read a public Wanderlog guide returned by wanderlog_search_guides.",
+      inputSchema: getGuideSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ guideKey }) =>
+      formatTripDetailResult(await client.getGuide(guideKey)),
+  );
+
+  server.registerTool(
     "wanderlog_add_place",
     {
       title: "Add Wanderlog place",
@@ -307,7 +367,8 @@ export function registerTripTools(
     "wanderlog_add_note",
     {
       title: "Add Wanderlog note",
-      description: "Save a practical note draft for a day or unscheduled trip list.",
+      description:
+        "Save a practical note draft for a day or unscheduled trip list.",
       inputSchema: addNoteSchema,
       annotations: localDraftAnnotations,
     },
@@ -505,6 +566,52 @@ export function formatPlaceSearchResult(
   };
 }
 
+export function formatGuideSearchResult(
+  query: string,
+  guides: GuideSearchResult,
+): CallToolResult {
+  const destination = formatGuideDestination(guides.geo);
+
+  if (guides.guides.length === 0) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `No public Wanderlog guides found for "${query}" (${destination}).`,
+        },
+      ],
+      structuredContent: { guides },
+    };
+  }
+
+  const guideLines = guides.guides.map((guide, index) => {
+    const metrics = [
+      guide.placeCount === null ? null : `${guide.placeCount} places`,
+      guide.viewCount === null ? null : `${guide.viewCount} views`,
+    ].filter((metric): metric is string => metric !== null);
+    const metricsText = metrics.length > 0 ? ` - ${metrics.join(", ")}` : "";
+    const blurb = guide.blurb ? `\n${guide.blurb}` : "";
+
+    return `${index + 1}. ${guide.title} by ${guide.author}${metricsText} [guide_key: ${guide.id}]${blurb}`;
+  });
+
+  const noun = guides.guides.length === 1 ? "guide" : "guides";
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Found ${guides.guides.length} Wanderlog ${noun} for "${query}" (${destination}):\n${guideLines.join("\n")}`,
+      },
+    ],
+    structuredContent: { guides },
+  };
+}
+
+function formatGuideDestination(geo: GuideSearchResult["geo"]): string {
+  return geo.country ? `${geo.name}, ${geo.country}` : geo.name;
+}
+
 export function formatTripMutationResult(result: {
   message: string;
   tripId: string;
@@ -698,7 +805,6 @@ export function formatDraftExportResult(
     structuredContent: { tripId, export: exportText },
   };
 }
-
 
 function formatDaySection(day: TripDay): string {
   const heading = [`Day ${day.day}`, day.title, day.date]

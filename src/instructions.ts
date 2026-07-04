@@ -2,6 +2,8 @@ export const WANDERLOG_SERVER_INSTRUCTIONS = `Use Wanderlog tools to build compl
 
 When creating a trip, call wanderlog_create_trip first. Then use
 wanderlog_search_places for real candidates before calling wanderlog_add_place.
+Use wanderlog_search_guides and wanderlog_get_guide for public Wanderlog guide
+inspiration before drafting an itinerary.
 Interleave wanderlog_add_note calls for transit, booking details, timing, and
 local context. Add lodging with wanderlog_add_hotel when requested. Add a
 pre-trip checklist or day checklist with wanderlog_add_checklist for documents,

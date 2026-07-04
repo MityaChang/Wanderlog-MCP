@@ -16,6 +16,8 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
   it("guides models through the v0.2 trip creation workflow", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_create_trip");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_search_places");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_search_guides");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_get_guide");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_place");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_note");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_hotel");
@@ -34,7 +36,7 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
 
   it("clarifies that local drafts are not yet live Wanderlog writes", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toMatch(
-      /local drafts.*not.*live|not.*live.*local drafts/si,
+      /local drafts.*not.*live|not.*live.*local drafts/is,
     );
   });
 
