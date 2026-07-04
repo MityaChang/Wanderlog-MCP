@@ -1,12 +1,26 @@
 import type {
+  AddChecklistInput,
+  AddHotelInput,
+  AddNoteInput,
+  AddPlaceInput,
+  CreatedTrip,
+  CreateTripInput,
+  PlaceSearchResult,
+  RawWanderlogGeo,
+  RawWanderlogPlaceSuggestion,
   RawWanderlogTrip,
   RawWanderlogTripDay,
   RawWanderlogTripItem,
   RawWanderlogTripSection,
+  SearchPlacesInput,
   TripDay,
   TripDetail,
   TripItem,
+  TripMutationResult,
   TripSummary,
+  WanderlogCreateTripResponse,
+  WanderlogGeoAutocompleteResponse,
+  WanderlogPlaceAutocompleteResponse,
   WanderlogTripDetailResponse,
   WanderlogTripListResponse,
 } from "./types.js";
@@ -31,40 +45,130 @@ export class WanderlogClient {
   }
 
   async listTrips(): Promise<TripSummary[]> {
-    const response = await this.fetchImpl(
-      `https://wanderlog.com${LIST_TRIPS_PATH}`,
-      {
-        method: "GET",
-        headers: {
-          accept: "application/json",
-          cookie: `connect.sid=${this.config.wanderlogCookie}`,
-        },
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Wanderlog request failed with status ${response.status}.`,
-      );
-    }
-
-    return mapTripSummaries(await readJsonResponse(response));
+    return mapTripSummaries(await this.request("GET", LIST_TRIPS_PATH));
   }
 
   async getTrip(
     tripId: string,
     options: { day?: number } = {},
   ): Promise<TripDetail | null> {
-    const response = await this.fetchImpl(
-      `https://wanderlog.com${getTripPath(tripId)}`,
-      {
-        method: "GET",
-        headers: {
-          accept: "application/json",
-          cookie: `connect.sid=${this.config.wanderlogCookie}`,
-        },
-      },
+    return mapTripDetail(
+      await this.request("GET", getTripPath(tripId)),
+      options,
     );
+  }
+
+  async createTrip(input: CreateTripInput): Promise<CreatedTrip> {
+    const geos = mapGeos(
+      await this.request(
+        "GET",
+        `/api/geo/autocomplete/${encodeURIComponent(input.destination)}`,
+      ),
+    );
+    const [geo] = geos;
+
+    if (!geo) {
+      throw new Error(
+        `No Wanderlog destination found for ${input.destination}.`,
+      );
+    }
+
+    const raw = (await this.request("POST", "/api/tripPlans", {
+      geoIds: [geo.id],
+      initialMapsPlaceIds: [],
+      initialEmailId: null,
+      type: "plan",
+      startDate: input.startDate,
+      endDate: input.endDate,
+      privacy: input.privacy ?? "private",
+      isMapEmbed: false,
+      title: input.title ?? null,
+      language: "en",
+    })) as WanderlogCreateTripResponse;
+
+    if (!raw.data?.key || raw.data.id === undefined || raw.data.id === null) {
+      throw new Error("Wanderlog trip creation returned no trip data.");
+    }
+
+    return {
+      id: raw.data.key,
+      numericId: raw.data.id,
+      title: raw.data.title ?? input.title ?? `Trip to ${geo.name}`,
+      destination: formatGeoLabel(geo),
+      startDate: input.startDate,
+      endDate: input.endDate,
+      url: `https://wanderlog.com/view/${raw.data.key}`,
+    };
+  }
+
+  async searchPlaces(input: SearchPlacesInput): Promise<PlaceSearchResult[]> {
+    const request = {
+      input: input.query,
+      sessiontoken: crypto.randomUUID(),
+      location: { latitude: input.latitude, longitude: input.longitude },
+      radius: 15000,
+      language: "en",
+    };
+    const raw = (await this.request(
+      "GET",
+      `/api/placesAPI/autocomplete/v2?request=${encodeURIComponent(JSON.stringify(request))}`,
+    )) as WanderlogPlaceAutocompleteResponse;
+
+    return (raw.data ?? [])
+      .filter(
+        (
+          place,
+        ): place is RawWanderlogPlaceSuggestion & { place_id: string } => {
+          return (
+            typeof place.place_id === "string" && place.place_id.length > 0
+          );
+        },
+      )
+      .map((place) => ({
+        id: place.place_id,
+        title:
+          place.structured_formatting?.main_text ??
+          place.description ??
+          "Untitled place",
+        description: place.structured_formatting?.secondary_text ?? null,
+      }));
+  }
+
+  async addPlace(input: AddPlaceInput): Promise<TripMutationResult> {
+    return this.mutationTransportNotImplemented(input.tripId, "add places");
+  }
+
+  async addNote(input: AddNoteInput): Promise<TripMutationResult> {
+    return this.mutationTransportNotImplemented(input.tripId, "add notes");
+  }
+
+  async addHotel(input: AddHotelInput): Promise<TripMutationResult> {
+    return this.mutationTransportNotImplemented(input.tripId, "add hotels");
+  }
+
+  async addChecklist(input: AddChecklistInput): Promise<TripMutationResult> {
+    return this.mutationTransportNotImplemented(input.tripId, "add checklists");
+  }
+
+  private async request(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+  ): Promise<unknown> {
+    const headers: Record<string, string> = {
+      accept: "application/json",
+      cookie: `connect.sid=${this.config.wanderlogCookie}`,
+    };
+
+    if (body !== undefined) {
+      headers["content-type"] = "application/json";
+    }
+
+    const response = await this.fetchImpl(`https://wanderlog.com${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
 
     if (!response.ok) {
       throw new Error(
@@ -72,7 +176,16 @@ export class WanderlogClient {
       );
     }
 
-    return mapTripDetail(await readJsonResponse(response), options);
+    return readJsonResponse(response);
+  }
+
+  private mutationTransportNotImplemented(
+    tripId: string,
+    action: string,
+  ): Promise<TripMutationResult> {
+    throw new Error(
+      `Wanderlog mutation transport is not implemented yet, so this server cannot ${action} in trip ${tripId}. Create the trip with wanderlog_create_trip, search candidates with wanderlog_search_places, then implement the ShareDB mutation transport before writing itinerary blocks.`,
+    );
   }
 }
 
@@ -203,6 +316,35 @@ function getTripIdentifier(trip: RawWanderlogTrip): string | null {
   }
 
   return null;
+}
+
+function mapGeos(
+  raw: unknown,
+): Array<RawWanderlogGeo & { id: number; name: string }> {
+  const data = (raw as WanderlogGeoAutocompleteResponse).data;
+
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(
+    (geo): geo is RawWanderlogGeo & { id: number; name: string } =>
+      typeof geo.id === "number" &&
+      typeof geo.name === "string" &&
+      geo.name.length > 0,
+  );
+}
+
+function formatGeoLabel(geo: RawWanderlogGeo & { name: string }): string {
+  if (geo.stateName && geo.countryName) {
+    return `${geo.name}, ${geo.stateName}, ${geo.countryName}`;
+  }
+
+  if (geo.countryName) {
+    return `${geo.name}, ${geo.countryName}`;
+  }
+
+  return geo.name;
 }
 
 function mapTripItem(item: RawWanderlogTripItem): TripItem {

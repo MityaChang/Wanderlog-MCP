@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatCreatedTripResult,
+  formatPlaceSearchResult,
   formatTripDetailResult,
   formatTripForwardingEmailResult,
   formatTripListResult,
   formatTripUrlResult,
 } from "../../src/tools/trips.js";
-import type { TripDetail, TripSummary } from "../../src/wanderlog/types.js";
+import type {
+  CreatedTrip,
+  PlaceSearchResult,
+  TripDetail,
+  TripSummary,
+} from "../../src/wanderlog/types.js";
 
 describe("formatTripListResult", () => {
   it("formats trip summaries as readable text and structured content", () => {
@@ -157,5 +164,73 @@ describe("trip link formatters", () => {
         forwardingEmail: "trip+12345@wanderlog.com",
       },
     });
+  });
+});
+
+describe("v0.2 itinerary-building formatters", () => {
+  it("formats a created trip with next-step guidance", () => {
+    const trip: CreatedTrip = {
+      id: "lisbon-key",
+      numericId: 789,
+      title: "Lisbon Long Weekend",
+      destination: "Lisbon, Portugal",
+      startDate: "2026-06-01",
+      endDate: "2026-06-05",
+      url: "https://wanderlog.com/view/lisbon-key",
+    };
+
+    const result = formatCreatedTripResult(trip);
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text:
+          "Created Lisbon Long Weekend for Lisbon, Portugal (2026-06-01 to 2026-06-05).\n" +
+          "Trip key: lisbon-key\n" +
+          "URL: https://wanderlog.com/view/lisbon-key\n\n" +
+          "Next: search for real places with wanderlog_search_places, then add places, practical notes, lodging, and a checklist.",
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ trip });
+  });
+
+  it("formats place search results for concise selection", () => {
+    const places: PlaceSearchResult[] = [
+      {
+        id: "place-123",
+        title: "Time Out Market Lisboa",
+        description: "Lisbon, Portugal",
+      },
+      {
+        id: "place-456",
+        title: "MAAT",
+        description: null,
+      },
+    ];
+
+    const result = formatPlaceSearchResult("food hall", places);
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text:
+          'Found 2 places for "food hall":\n' +
+          "1. Time Out Market Lisboa - Lisbon, Portugal [place_id: place-123]\n" +
+          "2. MAAT [place_id: place-456]",
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ places });
+  });
+
+  it("formats empty place search results", () => {
+    const result = formatPlaceSearchResult("ramen", []);
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: 'No Wanderlog places found for "ramen".',
+      },
+    ]);
+    expect(result.structuredContent).toEqual({ places: [] });
   });
 });

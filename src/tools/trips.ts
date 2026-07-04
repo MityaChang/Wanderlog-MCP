@@ -4,13 +4,25 @@ import { z } from "zod";
 
 import type { WanderlogClient } from "../wanderlog/client.js";
 import type {
+  CreatedTrip,
+  PlaceSearchResult,
   TripDay,
   TripDetail,
   TripItem,
   TripSummary,
 } from "../wanderlog/types.js";
 
-type TripClient = Pick<WanderlogClient, "getTrip" | "listTrips">;
+type TripClient = Pick<
+  WanderlogClient,
+  | "addChecklist"
+  | "addHotel"
+  | "addNote"
+  | "addPlace"
+  | "createTrip"
+  | "getTrip"
+  | "listTrips"
+  | "searchPlaces"
+>;
 
 const tripIdSchema = {
   tripId: z.string().min(1).describe("Wanderlog trip ID, for example 12345."),
@@ -24,6 +36,90 @@ const getTripSchema = {
     .positive()
     .optional()
     .describe("Optional itinerary day number."),
+};
+
+const createTripSchema = {
+  destination: z
+    .string()
+    .min(1)
+    .describe("City or region name to plan around, for example Lisbon."),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("First day of the trip, YYYY-MM-DD."),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Last day of the trip, YYYY-MM-DD."),
+  title: z.string().min(1).optional().describe("Optional custom trip title."),
+  privacy: z
+    .enum(["private", "friends", "public"])
+    .optional()
+    .describe("Trip visibility. Defaults to private."),
+};
+
+const searchPlacesSchema = {
+  query: z
+    .string()
+    .min(1)
+    .describe("What to search for, for example sushi restaurant or museum."),
+  latitude: z.number().describe("Latitude used to bias place search."),
+  longitude: z.number().describe("Longitude used to bias place search."),
+};
+
+const addPlaceSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  place: z.string().min(1).describe("Place name to add to the trip."),
+  day: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Optional day, date, or ISO date."),
+  note: z.string().min(1).optional().describe("Optional inline place note."),
+  startTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional()
+    .describe("Optional start time in HH:mm."),
+  endTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional()
+    .describe("Optional end time in HH:mm."),
+};
+
+const addNoteSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  text: z.string().min(1).describe("Plain-text note content."),
+  day: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Optional day, date, or ISO date."),
+};
+
+const addHotelSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  hotel: z.string().min(1).describe("Hotel name to add."),
+  checkIn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Check-in date, YYYY-MM-DD."),
+  checkOut: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Check-out date, YYYY-MM-DD."),
+};
+
+const addChecklistSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  items: z.array(z.string().min(1)).min(1).describe("Checklist items."),
+  title: z.string().min(1).optional().describe("Optional checklist title."),
+  day: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Optional day, date, or ISO date."),
 };
 
 export function registerTripTools(server: McpServer, client: TripClient): void {
@@ -91,6 +187,149 @@ export function registerTripTools(server: McpServer, client: TripClient): void {
     async ({ tripId }) =>
       formatTripForwardingEmailResult(await client.getTrip(tripId)),
   );
+
+  server.registerTool(
+    "wanderlog_create_trip",
+    {
+      title: "Create Wanderlog trip",
+      description: "Create a new Wanderlog trip with destination and dates.",
+      inputSchema: createTripSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => formatCreatedTripResult(await client.createTrip(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_search_places",
+    {
+      title: "Search Wanderlog places",
+      description: "Find real-world places near a latitude and longitude.",
+      inputSchema: searchPlacesSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      formatPlaceSearchResult(input.query, await client.searchPlaces(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_add_place",
+    {
+      title: "Add Wanderlog place",
+      description: "Add a place to a day or unscheduled trip list.",
+      inputSchema: addPlaceSchema,
+      annotations: mutationAnnotations,
+    },
+    async (input) => formatTripMutationResult(await client.addPlace(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_add_note",
+    {
+      title: "Add Wanderlog note",
+      description: "Add a practical note to a day or unscheduled trip list.",
+      inputSchema: addNoteSchema,
+      annotations: mutationAnnotations,
+    },
+    async (input) => formatTripMutationResult(await client.addNote(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_add_hotel",
+    {
+      title: "Add Wanderlog hotel",
+      description: "Add lodging with check-in and check-out dates.",
+      inputSchema: addHotelSchema,
+      annotations: mutationAnnotations,
+    },
+    async (input) => formatTripMutationResult(await client.addHotel(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_add_checklist",
+    {
+      title: "Add Wanderlog checklist",
+      description: "Add a trip-level or day-level checklist.",
+      inputSchema: addChecklistSchema,
+      annotations: mutationAnnotations,
+    },
+    async (input) => formatTripMutationResult(await client.addChecklist(input)),
+  );
+}
+
+const mutationAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+
+export function formatCreatedTripResult(trip: CreatedTrip): CallToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          `Created ${trip.title} for ${trip.destination} (${trip.startDate} to ${trip.endDate}).\n` +
+          `Trip key: ${trip.id}\n` +
+          `URL: ${trip.url}\n\n` +
+          "Next: search for real places with wanderlog_search_places, then add places, practical notes, lodging, and a checklist.",
+      },
+    ],
+    structuredContent: { trip },
+  };
+}
+
+export function formatPlaceSearchResult(
+  query: string,
+  places: PlaceSearchResult[],
+): CallToolResult {
+  if (places.length === 0) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `No Wanderlog places found for "${query}".`,
+        },
+      ],
+      structuredContent: { places },
+    };
+  }
+
+  const placeLines = places.map((place, index) => {
+    const description = place.description ? ` - ${place.description}` : "";
+
+    return `${index + 1}. ${place.title}${description} [place_id: ${place.id}]`;
+  });
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Found ${places.length} places for "${query}":\n${placeLines.join("\n")}`,
+      },
+    ],
+    structuredContent: { places },
+  };
+}
+
+export function formatTripMutationResult(result: {
+  message: string;
+  tripId: string;
+}): CallToolResult {
+  return {
+    content: [{ type: "text", text: result.message }],
+    structuredContent: { result },
+  };
 }
 
 export function formatTripListResult(trips: TripSummary[]): CallToolResult {

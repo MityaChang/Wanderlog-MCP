@@ -13,7 +13,16 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("pre-trip checklist");
   });
 
+  it("guides models through the v0.2 trip creation workflow", () => {
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_create_trip");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_search_places");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_place");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_note");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_hotel");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_checklist");
+  });
+
   it("keeps instructions concise enough for MCP startup", () => {
-    expect(WANDERLOG_SERVER_INSTRUCTIONS.length).toBeLessThan(1200);
+    expect(WANDERLOG_SERVER_INSTRUCTIONS.length).toBeLessThan(1800);
   });
 });

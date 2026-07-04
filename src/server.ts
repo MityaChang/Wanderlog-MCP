@@ -5,7 +5,17 @@ import { WANDERLOG_SERVER_INSTRUCTIONS } from "./instructions.js";
 import { registerTripTools } from "./tools/trips.js";
 import { WanderlogClient } from "./wanderlog/client.js";
 
-type TripClient = Pick<WanderlogClient, "getTrip" | "listTrips">;
+type TripClient = Pick<
+  WanderlogClient,
+  | "addChecklist"
+  | "addHotel"
+  | "addNote"
+  | "addPlace"
+  | "createTrip"
+  | "getTrip"
+  | "listTrips"
+  | "searchPlaces"
+>;
 
 export function createServer(client?: TripClient): McpServer {
   const server = new McpServer(

@@ -3,9 +3,11 @@
 Local MCP server for planning Wanderlog itineraries through conversation.
 
 This project lets an MCP-compatible assistant connect to your local Wanderlog
-browser session and use tools for trip planning. The first implemented tools
-list trips, read a trip itinerary, return a shareable trip URL, and return a
-trip import email. More itinerary-building tools are planned in tested slices.
+browser session and use tools for trip planning. Implemented tools list trips,
+read itineraries, create empty trips, search real places, return shareable URLs,
+and expose the v0.2 add-place/note/hotel/checklist contracts. The add tools are
+registered so agents know the intended workflow, but live itinerary block writes
+still require the next ShareDB mutation transport slice.
 
 Wanderlog does not provide a public API for this workflow. Treat the
 `connect.sid` cookie like a password, and do not commit it to this repository.
@@ -230,6 +232,12 @@ your account has no trips, it should say no Wanderlog trips were found.
 | `wanderlog_get_trip`                  | Reads a full trip itinerary, optionally filtered to one day. |
 | `wanderlog_get_trip_url`              | Returns a shareable Wanderlog trip link.                     |
 | `wanderlog_get_trip_forwarding_email` | Returns a trip import email address when available.          |
+| `wanderlog_create_trip`               | Creates an empty trip from destination and dates.            |
+| `wanderlog_search_places`             | Finds real places near a latitude and longitude.             |
+| `wanderlog_add_place`                 | Contract for adding a place; mutation transport pending.     |
+| `wanderlog_add_note`                  | Contract for adding a note; mutation transport pending.      |
+| `wanderlog_add_hotel`                 | Contract for adding lodging; mutation transport pending.     |
+| `wanderlog_add_checklist`             | Contract for adding checklists; mutation transport pending.  |
 
 ## Example Prompts
 
@@ -247,11 +255,19 @@ Show my Japan trip itinerary for day 2.
 Give me the shareable link for my Lisbon trip.
 ```
 
+```text
+Create a private Lisbon trip from 2026-06-01 to 2026-06-05.
+```
+
+```text
+Search for museums near latitude 38.7223 and longitude -9.1393.
+```
+
 Planned capabilities for later releases:
 
 ```text
 Create a five-day Tokyo itinerary with ramen spots, museums, transit notes, and
-a pre-trip checklist.
+a pre-trip checklist, then write every block into Wanderlog.
 ```
 
 ```text
