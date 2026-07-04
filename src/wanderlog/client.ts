@@ -3,8 +3,10 @@ import type {
   AddHotelInput,
   AddNoteInput,
   AddPlaceInput,
+  AnnotatePlaceInput,
   CreatedTrip,
   CreateTripInput,
+  EditNoteInput,
   GuideSearchResult,
   PlaceSearchResult,
   RawWanderlogGeo,
@@ -15,6 +17,7 @@ import type {
   RawWanderlogTripDay,
   RawWanderlogTripItem,
   RawWanderlogTripSection,
+  RemoveNoteInput,
   SearchGuidesInput,
   SearchPlacesInput,
   TripDay,
@@ -30,6 +33,8 @@ import type {
   WanderlogTripListResponse,
 } from "./types.js";
 import type { ServerConfig } from "../config.js";
+import type { Json0Op } from "../ot/apply.js";
+import { TripMutationCache } from "./trip-cache.js";
 
 export const LIST_TRIPS_PATH = "/api/tripPlans/home";
 
@@ -41,12 +46,15 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export class WanderlogClient {
   private readonly fetchImpl: FetchLike;
+  private readonly tripMutationCache: TripMutationCache;
 
   constructor(
     private readonly config: ServerConfig,
     fetchImpl: FetchLike = fetch,
+    tripMutationCache: TripMutationCache = TripMutationCache.fromConfig(config),
   ) {
     this.fetchImpl = fetchImpl;
+    this.tripMutationCache = tripMutationCache;
   }
 
   async listTrips(): Promise<TripSummary[]> {
@@ -197,6 +205,117 @@ export class WanderlogClient {
 
   async addChecklist(input: AddChecklistInput): Promise<TripMutationResult> {
     return this.mutationTransportNotImplemented(input.tripId, "add checklists");
+  }
+
+  async annotatePlace(input: AnnotatePlaceInput): Promise<TripMutationResult> {
+    if (!input.note && !input.startTime && !input.endTime) {
+      throw new Error(
+        "At least one of note, startTime, or endTime is required.",
+      );
+    }
+
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findPlaceBlock(snapshot, input.place);
+    const block = match.block as Record<string, unknown>;
+    const path = [
+      "itinerary",
+      "sections",
+      match.sectionIndex,
+      "blocks",
+      match.blockIndex,
+    ];
+    const ops: Json0Op[] = [];
+
+    if (input.note) {
+      ops.push({
+        p: [...path, "text"],
+        t: "rich-text",
+        o: [{ insert: `${input.note}\n` }],
+      });
+    }
+    if (input.startTime) {
+      ops.push(
+        createObjectSetOp(
+          [...path, "startTime"],
+          block,
+          "startTime",
+          input.startTime,
+        ),
+      );
+    }
+    if (input.endTime) {
+      ops.push(
+        createObjectSetOp(
+          [...path, "endTime"],
+          block,
+          "endTime",
+          input.endTime,
+        ),
+      );
+    }
+
+    await this.tripMutationCache.submit(input.tripId, ops);
+
+    return {
+      tripId: input.tripId,
+      message: `Updated ${match.name} in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async editNote(input: EditNoteInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findNoteTextMatch(snapshot, input.oldText);
+    const replacementOps: Array<Record<string, unknown>> = [];
+    if (match.offset > 0) {
+      replacementOps.push({ retain: match.offset });
+    }
+    replacementOps.push({ delete: input.oldText.length });
+    if (input.newText.length > 0) {
+      replacementOps.push({ insert: input.newText });
+    }
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: [
+          "itinerary",
+          "sections",
+          match.sectionIndex,
+          "blocks",
+          match.blockIndex,
+          "text",
+        ],
+        t: "rich-text",
+        o: replacementOps,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Updated note in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async removeNote(input: RemoveNoteInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findNoteTextMatch(snapshot, input.text);
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: [
+          "itinerary",
+          "sections",
+          match.sectionIndex,
+          "blocks",
+          match.blockIndex,
+        ],
+        ld: match.block,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Removed note from ${getSnapshotTitle(snapshot)}.`,
+    };
   }
 
   private async request(
@@ -441,6 +560,140 @@ function mapTripItem(item: RawWanderlogTripItem): TripItem {
     startTime: item.startTime ?? null,
     endTime: item.endTime ?? null,
   };
+}
+
+function createObjectSetOp(
+  path: Array<string | number>,
+  source: Record<string, unknown>,
+  key: string,
+  value: string,
+): Json0Op {
+  const op: Json0Op = { p: path, oi: value };
+  if (key in source) {
+    op.od = source[key];
+  }
+  return op;
+}
+
+function findPlaceBlock(
+  snapshot: unknown,
+  placeName: string,
+): { sectionIndex: number; blockIndex: number; block: unknown; name: string } {
+  const matches: Array<{
+    sectionIndex: number;
+    blockIndex: number;
+    block: unknown;
+    name: string;
+  }> = [];
+  const normalizedPlace = normalizeSearchText(placeName);
+
+  forEachBlock(snapshot, (block, sectionIndex, blockIndex) => {
+    if (!isRecord(block) || block.type !== "place" || !isRecord(block.place)) {
+      return;
+    }
+    const name = typeof block.place.name === "string" ? block.place.name : "";
+    if (normalizeSearchText(name) === normalizedPlace) {
+      matches.push({ sectionIndex, blockIndex, block, name });
+    }
+  });
+
+  if (matches.length === 0) {
+    throw new Error(`No place matching "${placeName}" found.`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`Multiple places matching "${placeName}" found.`);
+  }
+  return matches[0]!;
+}
+
+function findNoteTextMatch(
+  snapshot: unknown,
+  query: string,
+): {
+  sectionIndex: number;
+  blockIndex: number;
+  block: unknown;
+  offset: number;
+} {
+  const matches: Array<{
+    sectionIndex: number;
+    blockIndex: number;
+    block: unknown;
+    offset: number;
+  }> = [];
+  const lowerQuery = query.toLowerCase();
+
+  forEachBlock(snapshot, (block, sectionIndex, blockIndex) => {
+    if (!isRecord(block) || block.type !== "note") {
+      return;
+    }
+    const text = extractDeltaText(block.text);
+    const offset = text.toLowerCase().indexOf(lowerQuery);
+    if (offset >= 0) {
+      matches.push({ sectionIndex, blockIndex, block, offset });
+    }
+  });
+
+  if (matches.length === 0) {
+    throw new Error(`No note matching "${query}" found.`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`Multiple notes matching "${query}" found.`);
+  }
+  return matches[0]!;
+}
+
+function forEachBlock(
+  snapshot: unknown,
+  visitor: (block: unknown, sectionIndex: number, blockIndex: number) => void,
+): void {
+  if (!isRecord(snapshot) || !isRecord(snapshot.itinerary)) {
+    return;
+  }
+  const sections = snapshot.itinerary.sections;
+  if (!Array.isArray(sections)) {
+    return;
+  }
+  sections.forEach((section, sectionIndex) => {
+    if (!isRecord(section) || !Array.isArray(section.blocks)) {
+      return;
+    }
+    section.blocks.forEach((block, blockIndex) => {
+      visitor(block, sectionIndex, blockIndex);
+    });
+  });
+}
+
+function extractDeltaText(delta: unknown): string {
+  if (!isRecord(delta) || !Array.isArray(delta.ops)) {
+    return "";
+  }
+  return delta.ops
+    .map((op) => {
+      if (!isRecord(op) || typeof op.insert !== "string") {
+        return "";
+      }
+      return op.insert;
+    })
+    .join("");
+}
+
+function getSnapshotTitle(snapshot: unknown): string {
+  if (isRecord(snapshot) && typeof snapshot.title === "string") {
+    return `"${snapshot.title}"`;
+  }
+  return "the trip";
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .replace(/[\s\-–—]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function isTripListResponse(raw: unknown): raw is WanderlogTripListResponse {

@@ -119,6 +119,25 @@ export interface AddChecklistInput {
   day?: string;
 }
 
+export interface AnnotatePlaceInput {
+  tripId: string;
+  place: string;
+  note?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface EditNoteInput {
+  tripId: string;
+  oldText: string;
+  newText: string;
+}
+
+export interface RemoveNoteInput {
+  tripId: string;
+  text: string;
+}
+
 export interface RawWanderlogGeo {
   id?: number | null;
   name?: string | null;

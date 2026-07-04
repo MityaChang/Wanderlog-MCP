@@ -399,6 +399,10 @@ describe("registerTripTools", () => {
     registerTripTools(
       server as never,
       {
+        annotatePlace: async () => ({
+          tripId: "trip-key",
+          message: "Updated place.",
+        }),
         createTrip: async () => ({
           id: "trip-key",
           numericId: 1,
@@ -408,12 +412,20 @@ describe("registerTripTools", () => {
           endDate: "2026-06-02",
           url: "https://wanderlog.com/view/trip-key",
         }),
+        editNote: async () => ({
+          tripId: "trip-key",
+          message: "Updated note.",
+        }),
         getGuide: async (guideKey, options) => {
           guideRequest = { guideKey, options };
           return null;
         },
         getTrip: async () => null,
         listTrips: async () => [],
+        removeNote: async () => ({
+          tripId: "trip-key",
+          message: "Removed note.",
+        }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Vietnam", country: null },
           guides: [],

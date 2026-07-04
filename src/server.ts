@@ -11,10 +11,13 @@ import { WanderlogClient } from "./wanderlog/client.js";
 
 type TripClient = Pick<
   WanderlogClient,
+  | "annotatePlace"
   | "createTrip"
+  | "editNote"
   | "getGuide"
   | "getTrip"
   | "listTrips"
+  | "removeNote"
   | "searchGuides"
   | "searchPlaces"
 >;
