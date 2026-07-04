@@ -30,6 +30,7 @@ export interface TripItem {
 
 export interface RawWanderlogTrip {
   id?: string | number | null;
+  key?: string | null;
   name?: string | null;
   title?: string | null;
   destination?: string | null;
@@ -39,13 +40,28 @@ export interface RawWanderlogTrip {
   forwardingEmail?: string | null;
   days?: RawWanderlogTripDay[];
   generalItems?: RawWanderlogTripItem[];
+  itinerary?: {
+    sections?: RawWanderlogTripSection[];
+  };
+}
+
+export interface RawWanderlogTripSection {
+  id?: number | null;
+  mode?: string | null;
+  title?: string | null;
+  heading?: string | null;
+  date?: string | null;
+  items?: RawWanderlogTripItem[];
+  blocks?: RawWanderlogTripItem[];
 }
 
 export interface RawWanderlogTripDay {
   day?: number | null;
   date?: string | null;
   title?: string | null;
+  heading?: string | null;
   items?: RawWanderlogTripItem[];
+  blocks?: RawWanderlogTripItem[];
 }
 
 export interface RawWanderlogTripItem {
@@ -58,8 +74,12 @@ export interface RawWanderlogTripItem {
 
 export interface WanderlogTripListResponse {
   trips?: RawWanderlogTrip[];
+  ownTripPlans?: RawWanderlogTrip[];
+  friendsTripPlans?: RawWanderlogTrip[];
+  friendsPrivateSharedTripPlans?: RawWanderlogTrip[];
 }
 
 export interface WanderlogTripDetailResponse {
   trip?: RawWanderlogTrip;
+  tripPlan?: RawWanderlogTrip;
 }

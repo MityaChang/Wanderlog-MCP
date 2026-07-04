@@ -12,16 +12,18 @@ describe("WanderlogClient", () => {
       calls.push({ url, init });
 
       return Response.json({
-        trips: [
+        ownTripPlans: [
           {
             id: 12345,
-            name: "Japan Golden Route",
-            destination: "Japan",
+            key: "japan-golden-route-key",
+            title: "Japan Golden Route",
             startDate: "2026-04-01",
             endDate: "2026-04-14",
-            slug: "japan-golden-route",
+            placeCount: 12,
           },
         ],
+        friendsTripPlans: [],
+        friendsPrivateSharedTripPlans: [],
       });
     };
 
@@ -32,17 +34,17 @@ describe("WanderlogClient", () => {
 
     await expect(client.listTrips()).resolves.toEqual([
       {
-        id: "12345",
+        id: "japan-golden-route-key",
         title: "Japan Golden Route",
-        destination: "Japan",
+        destination: null,
         startDate: "2026-04-01",
         endDate: "2026-04-14",
-        url: "https://wanderlog.com/view/12345/japan-golden-route",
+        url: "https://wanderlog.com/view/japan-golden-route-key",
       },
     ]);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe("https://wanderlog.com/api/trips");
+    expect(calls[0]?.url).toBe("https://wanderlog.com/api/tripPlans/home");
     expect(calls[0]?.init?.method).toBe("GET");
     expect(calls[0]?.init?.headers).toEqual({
       accept: "application/json",
@@ -66,6 +68,26 @@ describe("WanderlogClient", () => {
     await expect(client.listTrips()).rejects.not.toThrow("s%3Asecret-cookie");
   });
 
+  it("throws a clear error when Wanderlog returns HTML instead of JSON", async () => {
+    const fetchImpl = async (): Promise<Response> => {
+      return new Response("<!DOCTYPE html><html>Sign in</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    };
+
+    const client = new WanderlogClient(
+      { wanderlogCookie: "s%3Asecret-cookie" },
+      fetchImpl,
+    );
+
+    await expect(client.listTrips()).rejects.toThrow(
+      "Wanderlog returned HTML instead of JSON. Check that WANDERLOG_COOKIE is fresh and the Wanderlog API path is still valid.",
+    );
+    await expect(client.listTrips()).rejects.not.toThrow("s%3Asecret-cookie");
+    await expect(client.listTrips()).rejects.not.toThrow("<!DOCTYPE");
+  });
+
   it("gets a trip detail with an optional day filter", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = async (
@@ -75,16 +97,30 @@ describe("WanderlogClient", () => {
       calls.push({ url, init });
 
       return Response.json({
-        trip: {
+        tripPlan: {
           id: "12345",
-          name: "Japan Golden Route",
-          destination: "Japan",
+          key: "japan-golden-route-key",
+          title: "Japan Golden Route",
           startDate: "2026-04-01",
           endDate: "2026-04-14",
-          days: [
-            { day: 1, title: "Arrival", items: [] },
-            { day: 2, title: "Museums", items: [] },
-          ],
+          itinerary: {
+            sections: [
+              {
+                id: 1,
+                mode: "dayPlan",
+                heading: "Arrival",
+                date: "2026-04-01",
+                blocks: [],
+              },
+              {
+                id: 2,
+                mode: "dayPlan",
+                heading: "Museums",
+                date: "2026-04-02",
+                blocks: [],
+              },
+            ],
+          },
         },
       });
     };
@@ -95,12 +131,14 @@ describe("WanderlogClient", () => {
     );
 
     await expect(client.getTrip("12345", { day: 2 })).resolves.toMatchObject({
-      id: "12345",
+      id: "japan-golden-route-key",
       title: "Japan Golden Route",
-      days: [{ day: 2, title: "Museums", date: null, items: [] }],
+      days: [{ day: 2, title: "Museums", date: "2026-04-02", items: [] }],
     });
 
-    expect(calls[0]?.url).toBe("https://wanderlog.com/api/trips/12345");
+    expect(calls[0]?.url).toBe(
+      "https://wanderlog.com/api/tripPlans/12345?clientSchemaVersion=2&registerView=true",
+    );
     expect(calls[0]?.init?.method).toBe("GET");
     expect(calls[0]?.init?.headers).toEqual({
       accept: "application/json",
