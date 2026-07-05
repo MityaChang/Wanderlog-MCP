@@ -7,7 +7,9 @@ import type {
   CreatedTrip,
   CreateTripInput,
   EditNoteInput,
+  EditExpenseInput,
   GuideSearchResult,
+  ListExpensesInput,
   PlaceSearchResult,
   RawWanderlogGeo,
   RawWanderlogGuide,
@@ -17,14 +19,18 @@ import type {
   RawWanderlogTripDay,
   RawWanderlogTripItem,
   RawWanderlogTripSection,
+  RenameDayInput,
+  RemoveExpenseInput,
   RemoveNoteInput,
   SearchGuidesInput,
   SearchPlacesInput,
   TripDay,
   TripDetail,
+  TripExpense,
   TripItem,
   TripMutationResult,
   TripSummary,
+  UpdateTripDatesInput,
   WanderlogCreateTripResponse,
   WanderlogGeoAutocompleteResponse,
   WanderlogGuidesForGeoResponse,
@@ -196,7 +202,24 @@ export class WanderlogClient {
   }
 
   async addNote(input: AddNoteInput): Promise<TripMutationResult> {
-    return this.mutationTransportNotImplemented(input.tripId, "add notes");
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = input.day
+      ? findDaySection(snapshot, input.day)
+      : findFirstDaySection(snapshot);
+    const blocks = getSectionBlocks(match.section);
+    const noteBlock = createNoteBlock(input.text);
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: ["itinerary", "sections", match.index, "blocks", blocks.length],
+        li: noteBlock,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Added note to day ${match.date} in ${getSnapshotTitle(snapshot)}.`,
+    };
   }
 
   async addHotel(input: AddHotelInput): Promise<TripMutationResult> {
@@ -315,6 +338,116 @@ export class WanderlogClient {
     return {
       tripId: input.tripId,
       message: `Removed note from ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async listExpenses(input: ListExpensesInput): Promise<TripExpense[]> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    return findExpenseMatches(snapshot, input).map(({ index, expense }) =>
+      mapTripExpense(index, expense),
+    );
+  }
+
+  async editExpense(input: EditExpenseInput): Promise<TripMutationResult> {
+    const hasNewValue =
+      input.newDescription !== undefined ||
+      input.newAmount !== undefined ||
+      input.newCurrency !== undefined ||
+      input.newCategory !== undefined ||
+      input.newDate !== undefined;
+    if (!hasNewValue) {
+      throw new Error("At least one new expense field is required.");
+    }
+
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findSingleExpenseMatch(snapshot, input);
+    const ops = buildExpenseEditOps(match.index, match.expense, input);
+
+    if (ops.length === 0) {
+      return {
+        tripId: input.tripId,
+        message: `No changes needed for ${formatExpenseLabel(match.expense)} in ${getSnapshotTitle(snapshot)}.`,
+      };
+    }
+
+    await this.tripMutationCache.submit(input.tripId, ops);
+
+    return {
+      tripId: input.tripId,
+      message: `Updated expense ${formatExpenseLabel(match.expense)} in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async removeExpense(input: RemoveExpenseInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findSingleExpenseMatch(snapshot, input);
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: ["itinerary", "budget", "expenses", match.index],
+        ld: match.expense,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Removed expense ${formatExpenseLabel(match.expense)} from ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async updateTripDates(
+    input: UpdateTripDatesInput,
+  ): Promise<TripMutationResult> {
+    if (input.endDate < input.startDate) {
+      throw new Error(
+        `endDate (${input.endDate}) is before startDate (${input.startDate}).`,
+      );
+    }
+
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const ops = buildUpdateTripDateOps(snapshot, input);
+
+    if (ops.length === 0) {
+      return {
+        tripId: input.tripId,
+        message: `Trip dates already match ${input.startDate} to ${input.endDate}.`,
+      };
+    }
+
+    await this.tripMutationCache.submit(input.tripId, ops);
+
+    return {
+      tripId: input.tripId,
+      message: `Updated trip dates in ${getSnapshotTitle(snapshot)} to ${input.startDate} to ${input.endDate}.`,
+    };
+  }
+
+  async renameDay(input: RenameDayInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findDaySection(snapshot, input.day);
+    const section = match.section;
+    const oldHeading =
+      typeof section.heading === "string" ? section.heading : undefined;
+
+    if (oldHeading === input.heading) {
+      return {
+        tripId: input.tripId,
+        message: `Day ${match.date} already has heading "${input.heading}".`,
+      };
+    }
+
+    await this.tripMutationCache.submit(input.tripId, [
+      createObjectSetOp(
+        ["itinerary", "sections", match.index, "heading"],
+        section,
+        "heading",
+        input.heading,
+      ),
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Renamed day ${match.date} in ${getSnapshotTitle(snapshot)}.`,
     };
   }
 
@@ -566,7 +699,7 @@ function createObjectSetOp(
   path: Array<string | number>,
   source: Record<string, unknown>,
   key: string,
-  value: string,
+  value: string | number,
 ): Json0Op {
   const op: Json0Op = { p: path, oi: value };
   if (key in source) {
@@ -641,6 +774,423 @@ function findNoteTextMatch(
     throw new Error(`Multiple notes matching "${query}" found.`);
   }
   return matches[0]!;
+}
+
+function createNoteBlock(text: string): Record<string, unknown> {
+  return {
+    type: "note",
+    text: { ops: [{ insert: text.endsWith("\n") ? text : `${text}\n` }] },
+  };
+}
+
+function findExpenseMatches(
+  snapshot: unknown,
+  filters: ListExpensesInput,
+): Array<{ index: number; expense: Record<string, unknown> }> {
+  const expenses = getRawExpenses(snapshot);
+  const description = filters.description?.toLowerCase();
+  const currency = filters.currency?.toUpperCase();
+
+  return expenses.flatMap((expense, index) => {
+    if (!isRecord(expense)) {
+      return [];
+    }
+    if (description) {
+      const expenseDescription = getExpenseDescription(expense).toLowerCase();
+      if (!expenseDescription.includes(description)) {
+        return [];
+      }
+    }
+    if (filters.date && expense.date !== filters.date) {
+      return [];
+    }
+    if (
+      filters.amount !== undefined &&
+      getExpenseAmount(expense) !== filters.amount
+    ) {
+      return [];
+    }
+    if (currency && getExpenseCurrency(expense) !== currency) {
+      return [];
+    }
+    return [{ index, expense }];
+  });
+}
+
+function findSingleExpenseMatch(
+  snapshot: unknown,
+  filters: RemoveExpenseInput,
+): { index: number; expense: Record<string, unknown> } {
+  const matches = findExpenseMatches(snapshot, filters);
+  if (matches.length === 0) {
+    throw new Error(`No expense matching "${filters.description}" found.`);
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `Multiple expenses matching "${filters.description}" found.`,
+    );
+  }
+  return matches[0]!;
+}
+
+function buildExpenseEditOps(
+  index: number,
+  expense: Record<string, unknown>,
+  input: EditExpenseInput,
+): Json0Op[] {
+  const basePath = ["itinerary", "budget", "expenses", index];
+  const ops: Json0Op[] = [];
+
+  if (input.newDescription !== undefined) {
+    pushExpenseSetOp(
+      ops,
+      [...basePath, "description"],
+      expense,
+      "description",
+      input.newDescription,
+    );
+  }
+  if (input.newCategory !== undefined) {
+    pushExpenseSetOp(
+      ops,
+      [...basePath, "category"],
+      expense,
+      "category",
+      input.newCategory,
+    );
+  }
+  if (input.newAmount !== undefined) {
+    const amount = getExpenseAmountRecord(expense);
+    pushExpenseSetOp(
+      ops,
+      [...basePath, "amount", "amount"],
+      amount,
+      "amount",
+      input.newAmount,
+    );
+  }
+  if (input.newCurrency !== undefined) {
+    const amount = getExpenseAmountRecord(expense);
+    pushExpenseSetOp(
+      ops,
+      [...basePath, "amount", "currencyCode"],
+      amount,
+      "currencyCode",
+      input.newCurrency.toUpperCase(),
+    );
+  }
+  if (input.newDate !== undefined) {
+    pushExpenseSetOp(
+      ops,
+      [...basePath, "date"],
+      expense,
+      "date",
+      input.newDate,
+    );
+    pushExpenseSetOp(
+      ops,
+      [...basePath, "associatedDate"],
+      expense,
+      "associatedDate",
+      input.newDate,
+    );
+  }
+
+  return ops;
+}
+
+function pushExpenseSetOp(
+  ops: Json0Op[],
+  path: Array<string | number>,
+  source: Record<string, unknown>,
+  key: string,
+  value: string | number,
+): void {
+  if (source[key] === value) {
+    return;
+  }
+  ops.push(createObjectSetOp(path, source, key, value));
+}
+
+function getRawExpenses(snapshot: unknown): unknown[] {
+  if (!isRecord(snapshot) || !isRecord(snapshot.itinerary)) {
+    return [];
+  }
+  const budget = snapshot.itinerary.budget;
+  if (!isRecord(budget) || !Array.isArray(budget.expenses)) {
+    return [];
+  }
+  return budget.expenses;
+}
+
+function mapTripExpense(
+  index: number,
+  expense: Record<string, unknown>,
+): TripExpense {
+  return {
+    index,
+    id:
+      typeof expense.id === "string" || typeof expense.id === "number"
+        ? expense.id
+        : null,
+    amount: getExpenseAmount(expense),
+    currency: getExpenseCurrency(expense),
+    category: typeof expense.category === "string" ? expense.category : null,
+    description: getExpenseDescription(expense),
+    date: typeof expense.date === "string" ? expense.date : null,
+  };
+}
+
+function formatExpenseLabel(expense: Record<string, unknown>): string {
+  const currency = getExpenseCurrency(expense) ?? "?";
+  const amount = getExpenseAmount(expense) ?? "?";
+  return `${currency} ${amount} - ${getExpenseDescription(expense)}`;
+}
+
+function getExpenseDescription(expense: Record<string, unknown>): string {
+  return typeof expense.description === "string" ? expense.description : "";
+}
+
+function getExpenseAmount(expense: Record<string, unknown>): number | null {
+  const amount = getExpenseAmountRecord(expense).amount;
+  return typeof amount === "number" ? amount : null;
+}
+
+function getExpenseCurrency(expense: Record<string, unknown>): string | null {
+  const currency = getExpenseAmountRecord(expense).currencyCode;
+  return typeof currency === "string" ? currency.toUpperCase() : null;
+}
+
+function getExpenseAmountRecord(
+  expense: Record<string, unknown>,
+): Record<string, unknown> {
+  return isRecord(expense.amount) ? expense.amount : {};
+}
+
+function buildUpdateTripDateOps(
+  snapshot: unknown,
+  input: UpdateTripDatesInput,
+): Json0Op[] {
+  const sections = getItinerarySections(snapshot);
+  const currentDaysByDate = new Map<
+    string,
+    { index: number; section: Record<string, unknown> }
+  >();
+
+  sections.forEach((section, index) => {
+    if (
+      isRecord(section) &&
+      section.mode === "dayPlan" &&
+      typeof section.date === "string"
+    ) {
+      currentDaysByDate.set(section.date, { index, section });
+    }
+  });
+
+  const targetDates = enumerateDates(input.startDate, input.endDate);
+  const targetDateSet = new Set(targetDates);
+  const removedDays = Array.from(currentDaysByDate.entries())
+    .filter(([date]) => !targetDateSet.has(date))
+    .map(([date, day]) => ({ date, ...day }));
+
+  if (!input.force) {
+    const nonEmptyRemovedDays = removedDays.filter(
+      ({ section }) => getSectionBlocks(section).length > 0,
+    );
+    if (nonEmptyRemovedDays.length > 0) {
+      throw new Error(
+        `Updating trip dates would delete content from ${nonEmptyRemovedDays.length} day(s). Pass force to remove them.`,
+      );
+    }
+  }
+
+  const ops: Json0Op[] = [];
+  const removedSections = new Set(removedDays.map((day) => day.section));
+  const simulatedSections = sections.filter(
+    (section) => !removedSections.has(section as Record<string, unknown>),
+  );
+
+  for (const day of removedDays.sort((a, b) => b.index - a.index)) {
+    ops.push({
+      p: ["itinerary", "sections", day.index],
+      ld: day.section,
+    });
+  }
+
+  for (const date of targetDates) {
+    if (currentDaysByDate.has(date)) {
+      continue;
+    }
+    const newSection = createEmptyDaySection(date);
+    const insertIndex = findDayInsertIndex(simulatedSections, date);
+    ops.push({
+      p: ["itinerary", "sections", insertIndex],
+      li: newSection,
+    });
+    simulatedSections.splice(insertIndex, 0, newSection);
+  }
+
+  if (isRecord(snapshot)) {
+    if (snapshot.startDate !== input.startDate) {
+      ops.push(
+        createObjectSetOp(
+          ["startDate"],
+          snapshot,
+          "startDate",
+          input.startDate,
+        ),
+      );
+    }
+    if (snapshot.endDate !== input.endDate) {
+      ops.push(
+        createObjectSetOp(["endDate"], snapshot, "endDate", input.endDate),
+      );
+    }
+    if (snapshot.days !== targetDates.length) {
+      ops.push(
+        createObjectSetOp(["days"], snapshot, "days", targetDates.length),
+      );
+    }
+  }
+
+  return ops;
+}
+
+function enumerateDates(startDate: string, endDate: string): string[] {
+  const start = parseIsoDateUtc(startDate);
+  const end = parseIsoDateUtc(endDate);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const dates: string[] = [];
+
+  for (let time = start; time <= end; time += dayMs) {
+    dates.push(new Date(time).toISOString().slice(0, 10));
+  }
+
+  return dates;
+}
+
+function parseIsoDateUtc(date: string): number {
+  return Date.UTC(
+    Number.parseInt(date.slice(0, 4), 10),
+    Number.parseInt(date.slice(5, 7), 10) - 1,
+    Number.parseInt(date.slice(8, 10), 10),
+  );
+}
+
+function createEmptyDaySection(date: string): Record<string, unknown> {
+  return {
+    id: createMutationId(),
+    type: "normal",
+    mode: "dayPlan",
+    heading: "",
+    text: { ops: [{ insert: "\n" }] },
+    date,
+    blocks: [],
+    placeMarkerColor: "#3498db",
+    placeMarkerIcon: "map-marker",
+  };
+}
+
+function createMutationId(): number {
+  return Math.floor(Date.now() * 1000 + Math.random() * 1000);
+}
+
+function findDayInsertIndex(sections: unknown[], date: string): number {
+  for (let index = 0; index < sections.length; index += 1) {
+    const section = sections[index];
+    if (
+      isRecord(section) &&
+      section.mode === "dayPlan" &&
+      typeof section.date === "string" &&
+      section.date > date
+    ) {
+      return index;
+    }
+  }
+  return sections.length;
+}
+
+function findDaySection(
+  snapshot: unknown,
+  query: string,
+): { index: number; section: Record<string, unknown>; date: string } {
+  const normalizedQuery = normalizeSearchText(query);
+  const dayOrdinal = parseDayOrdinal(normalizedQuery);
+  const matches: Array<{
+    index: number;
+    section: Record<string, unknown>;
+    date: string;
+  }> = [];
+
+  getItinerarySections(snapshot).forEach((section, index) => {
+    if (!isRecord(section) || section.mode !== "dayPlan") {
+      return;
+    }
+    const date = typeof section.date === "string" ? section.date : "";
+    const heading = typeof section.heading === "string" ? section.heading : "";
+    const isMatch =
+      query === date ||
+      normalizedQuery === normalizeSearchText(heading) ||
+      dayOrdinal === matches.length + 1;
+
+    if (isMatch && date) {
+      matches.push({ index, section, date });
+    }
+  });
+
+  if (matches.length === 0) {
+    throw new Error(`No day matching "${query}" found.`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`Multiple days matching "${query}" found.`);
+  }
+  return matches[0]!;
+}
+
+function findFirstDaySection(snapshot: unknown): {
+  index: number;
+  section: Record<string, unknown>;
+  date: string;
+} {
+  const match = getItinerarySections(snapshot).findIndex((section) => {
+    return (
+      isRecord(section) &&
+      section.mode === "dayPlan" &&
+      typeof section.date === "string"
+    );
+  });
+
+  if (match < 0) {
+    throw new Error("No day sections exist for this trip.");
+  }
+
+  const section = getItinerarySections(snapshot)[match];
+  if (!isRecord(section) || typeof section.date !== "string") {
+    throw new Error("No day sections exist for this trip.");
+  }
+
+  return { index: match, section, date: section.date };
+}
+
+function parseDayOrdinal(query: string): number | null {
+  const match = /^day (\d+)$/.exec(query);
+  if (!match) {
+    return null;
+  }
+  return Number.parseInt(match[1]!, 10);
+}
+
+function getItinerarySections(snapshot: unknown): unknown[] {
+  if (!isRecord(snapshot) || !isRecord(snapshot.itinerary)) {
+    return [];
+  }
+  return Array.isArray(snapshot.itinerary.sections)
+    ? snapshot.itinerary.sections
+    : [];
+}
+
+function getSectionBlocks(section: Record<string, unknown>): unknown[] {
+  return Array.isArray(section.blocks) ? section.blocks : [];
 }
 
 function forEachBlock(

@@ -120,7 +120,7 @@ describe("live place annotation tools", () => {
     ]);
   });
 
-  it("registers live note and place annotation tools without changing local draft wording", async () => {
+  it("registers live note and place annotation tools without changing remaining local draft wording", async () => {
     const { client } = createClient({
       title: "Japan Golden Route",
       itinerary: { sections: [] },
@@ -143,8 +143,8 @@ describe("live place annotation tools", () => {
     expect(handlers.has("wanderlog_annotate_place")).toBe(true);
     expect(handlers.has("wanderlog_edit_note")).toBe(true);
     expect(handlers.has("wanderlog_remove_note")).toBe(true);
-    expect(definitions.get("wanderlog_add_note")?.description).toBe(
-      "Save a practical note draft for a day or unscheduled trip list.",
+    expect(definitions.get("wanderlog_add_place")?.description).toBe(
+      "Save a place draft for a day or unscheduled trip list.",
     );
   });
 });

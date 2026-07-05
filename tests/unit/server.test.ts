@@ -6,6 +6,10 @@ describe("createServer", () => {
   it("creates an MCP server with a connect method", () => {
     const server = createServer(
       {
+        addNote: async () => ({
+          tripId: "test-trip",
+          message: "Added note.",
+        }),
         annotatePlace: async () => ({
           tripId: "test-trip",
           message: "Updated place.",
@@ -19,13 +23,26 @@ describe("createServer", () => {
           endDate: "2026-01-02",
           url: "https://wanderlog.com/view/test-trip",
         }),
+        editExpense: async () => ({
+          tripId: "test-trip",
+          message: "Updated expense.",
+        }),
         editNote: async () => ({
           tripId: "test-trip",
           message: "Updated note.",
         }),
         getGuide: async () => null,
         getTrip: async () => null,
+        listExpenses: async () => [],
         listTrips: async () => [],
+        renameDay: async () => ({
+          tripId: "test-trip",
+          message: "Renamed day.",
+        }),
+        removeExpense: async () => ({
+          tripId: "test-trip",
+          message: "Removed expense.",
+        }),
         removeNote: async () => ({
           tripId: "test-trip",
           message: "Removed note.",
@@ -35,6 +52,10 @@ describe("createServer", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateTripDates: async () => ({
+          tripId: "test-trip",
+          message: "Updated trip dates.",
+        }),
       },
       {
         create: async (input) => ({

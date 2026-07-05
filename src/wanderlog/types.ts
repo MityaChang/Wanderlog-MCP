@@ -90,6 +90,16 @@ export interface TripMutationResult {
   message: string;
 }
 
+export interface TripExpense {
+  index: number;
+  id: string | number | null;
+  amount: number | null;
+  currency: string | null;
+  category: string | null;
+  description: string;
+  date: string | null;
+}
+
 export interface AddPlaceInput {
   tripId: string;
   place: string;
@@ -136,6 +146,40 @@ export interface EditNoteInput {
 export interface RemoveNoteInput {
   tripId: string;
   text: string;
+}
+
+export interface ListExpensesInput {
+  tripId: string;
+  description?: string;
+  date?: string;
+  amount?: number;
+  currency?: string;
+}
+
+export interface EditExpenseInput extends ListExpensesInput {
+  description: string;
+  newDescription?: string;
+  newAmount?: number;
+  newCurrency?: string;
+  newCategory?: string;
+  newDate?: string;
+}
+
+export interface RemoveExpenseInput extends ListExpensesInput {
+  description: string;
+}
+
+export interface UpdateTripDatesInput {
+  tripId: string;
+  startDate: string;
+  endDate: string;
+  force?: boolean;
+}
+
+export interface RenameDayInput {
+  tripId: string;
+  day: string;
+  heading: string;
 }
 
 export interface RawWanderlogGeo {

@@ -382,6 +382,110 @@ describe("formatDraftExportResult", () => {
 });
 
 describe("registerTripTools", () => {
+  it("routes add-note through the live client", async () => {
+    let addedNote: unknown = null;
+    let createdDraft: unknown = null;
+    const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
+    const server = {
+      registerTool: (
+        name: string,
+        _definition: unknown,
+        handler: (input: unknown) => Promise<unknown>,
+      ) => {
+        handlers.set(name, handler);
+      },
+    };
+
+    registerTripTools(
+      server as never,
+      {
+        addNote: async (input) => {
+          addedNote = input;
+          return { tripId: "trip-key", message: "Added note." };
+        },
+        annotatePlace: async () => ({
+          tripId: "trip-key",
+          message: "Updated place.",
+        }),
+        createTrip: async () => ({
+          id: "trip-key",
+          numericId: 1,
+          title: "Trip",
+          destination: "Vietnam",
+          startDate: "2026-06-01",
+          endDate: "2026-06-02",
+          url: "https://wanderlog.com/view/trip-key",
+        }),
+        editExpense: async () => ({
+          tripId: "trip-key",
+          message: "Updated expense.",
+        }),
+        editNote: async () => ({
+          tripId: "trip-key",
+          message: "Updated note.",
+        }),
+        getGuide: async () => null,
+        getTrip: async () => null,
+        listExpenses: async () => [],
+        listTrips: async () => [],
+        renameDay: async () => ({
+          tripId: "trip-key",
+          message: "Renamed day.",
+        }),
+        removeExpense: async () => ({
+          tripId: "trip-key",
+          message: "Removed expense.",
+        }),
+        removeNote: async () => ({
+          tripId: "trip-key",
+          message: "Removed note.",
+        }),
+        searchGuides: async () => ({
+          geo: { id: 1, name: "Vietnam", country: null },
+          guides: [],
+        }),
+        searchPlaces: async () => [],
+        updateTripDates: async () => ({
+          tripId: "trip-key",
+          message: "Updated trip dates.",
+        }),
+      },
+      {
+        create: async (input) => {
+          createdDraft = input;
+          return {
+            ...input,
+            draftId: "draft-1",
+            createdAt: "2026-07-04T00:00:00.000Z",
+            updatedAt: "2026-07-04T00:00:00.000Z",
+          };
+        },
+        list: async () => [],
+        update: async () => sampleDraft,
+        delete: async () => sampleDraft,
+        exportTrip: async () => "Local Wanderlog drafts for trip trip-key",
+      },
+    );
+
+    const result = await handlers.get("wanderlog_add_note")?.({
+      tripId: "trip-key",
+      text: "Book train seats.",
+      day: "day 1",
+    });
+
+    expect(addedNote).toEqual({
+      tripId: "trip-key",
+      text: "Book train seats.",
+      day: "day 1",
+    });
+    expect(createdDraft).toBeNull();
+    expect(result).toMatchObject({
+      structuredContent: {
+        result: { tripId: "trip-key", message: "Added note." },
+      },
+    });
+  });
+
   it("passes the optional guide day filter to the client", async () => {
     let guideRequest: { guideKey: string; options?: { day?: number } } | null =
       null;
@@ -399,6 +503,10 @@ describe("registerTripTools", () => {
     registerTripTools(
       server as never,
       {
+        addNote: async () => ({
+          tripId: "trip-key",
+          message: "Added note.",
+        }),
         annotatePlace: async () => ({
           tripId: "trip-key",
           message: "Updated place.",
@@ -412,6 +520,10 @@ describe("registerTripTools", () => {
           endDate: "2026-06-02",
           url: "https://wanderlog.com/view/trip-key",
         }),
+        editExpense: async () => ({
+          tripId: "trip-key",
+          message: "Updated expense.",
+        }),
         editNote: async () => ({
           tripId: "trip-key",
           message: "Updated note.",
@@ -421,7 +533,16 @@ describe("registerTripTools", () => {
           return null;
         },
         getTrip: async () => null,
+        listExpenses: async () => [],
         listTrips: async () => [],
+        renameDay: async () => ({
+          tripId: "trip-key",
+          message: "Renamed day.",
+        }),
+        removeExpense: async () => ({
+          tripId: "trip-key",
+          message: "Removed expense.",
+        }),
         removeNote: async () => ({
           tripId: "trip-key",
           message: "Removed note.",
@@ -431,6 +552,10 @@ describe("registerTripTools", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateTripDates: async () => ({
+          tripId: "trip-key",
+          message: "Updated trip dates.",
+        }),
       },
       {
         create: async (input) => ({
