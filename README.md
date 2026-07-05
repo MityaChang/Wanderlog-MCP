@@ -5,10 +5,11 @@ Local MCP server for planning Wanderlog itineraries through conversation.
 This project lets an MCP-compatible assistant connect to your local Wanderlog
 browser session and use tools for trip planning. Implemented tools list trips,
 read itineraries, create empty trips, search real places, return shareable URLs,
-search public Wanderlog guides, return shareable URLs, and add, update, delete,
-and manage expenses on local draft itinerary blocks.
-Local draft writes are stored in a user-local JSON file and are not yet live
-Wanderlog itinerary writes; live writes still require a future mutation transport.
+search public Wanderlog guides, return shareable URLs, edit selected live
+Wanderlog itinerary fields, and add, update, delete, and manage local draft
+itinerary blocks.
+Local draft writes are stored in a user-local JSON file. Live writes use
+Wanderlog's private ShareDB transport for supported update tools only.
 
 Wanderlog does not provide a public API for this workflow. Treat the
 `connect.sid` cookie like a password, and do not commit it to this repository.
@@ -236,18 +237,27 @@ your account has no trips, it should say no Wanderlog trips were found.
 | `wanderlog_create_trip`               | Creates an empty trip from destination and dates.            |
 | `wanderlog_search_places`             | Finds real places near a latitude and longitude.             |
 | `wanderlog_add_place`                 | Adds a place to a local draft itinerary.                     |
-| `wanderlog_add_note`                  | Adds a note to a local draft itinerary.                      |
+| `wanderlog_add_note`                  | Adds a practical note to one live day section.               |
 | `wanderlog_add_hotel`                 | Adds lodging to a local draft itinerary.                     |
 | `wanderlog_add_checklist`             | Adds a checklist to a local draft itinerary.                 |
 | `wanderlog_update_draft`              | Updates an item in a local draft itinerary.                  |
 | `wanderlog_delete_draft`              | Deletes an item from a local draft itinerary.                |
 | `wanderlog_add_expense`               | Adds an expense entry to a local draft itinerary.            |
+| `wanderlog_annotate_place`            | Updates an existing live place note or time.                 |
+| `wanderlog_edit_note`                 | Replaces text in one existing live note.                     |
+| `wanderlog_remove_note`               | Removes one existing live note.                              |
+| `wanderlog_list_expenses`             | Lists live budget expenses for a trip.                       |
+| `wanderlog_edit_expense`              | Edits one live budget expense.                               |
+| `wanderlog_remove_expense`            | Removes one live budget expense.                             |
+| `wanderlog_update_trip_dates`         | Updates live trip dates and day sections.                    |
+| `wanderlog_rename_day`                | Renames one live day heading.                                |
 | `wanderlog_list_drafts`               | Lists all items currently held in the local draft store.     |
 | `wanderlog_export_drafts`             | Exports the local draft store as JSON for review or handoff. |
 
-> **Note:** add, expense, list draft, update draft, delete draft, and export
-> draft tools operate on local drafts in a user-local JSON file. Live Wanderlog itinerary
-> writes still require a future mutation transport.
+> **Note:** add-place, add-hotel, add-checklist, add-expense, list draft,
+> update draft, delete draft, and export draft tools operate on local drafts in
+> a user-local JSON file. Live tools use Wanderlog's private ShareDB transport
+> and should be tested on disposable trip data first.
 
 ## Example Prompts
 
@@ -285,8 +295,7 @@ Show me everything in my local draft.
 Export my local draft as JSON.
 ```
 
-Planned capabilities for later releases — live Wanderlog itinerary writes still
-require a future mutation transport:
+Planned capabilities for later releases:
 
 ```text
 Write every block from my local draft into Wanderlog.
@@ -332,11 +341,24 @@ npm run test:fixtures
 npm run build
 ```
 
-Run the live read-only integration smoke test only when you have a valid cookie:
+Run live integration smoke tests only when you have a valid cookie:
 
 ```bash
 RUN_WANDERLOG_INTEGRATION=1 WANDERLOG_COOKIE='s%3A...' npm run test:integration
 ```
+
+Run the live ShareDB mutation smoke test only against a disposable trip:
+
+```bash
+RUN_WANDERLOG_INTEGRATION=1 \
+WANDERLOG_COOKIE='s%3A...' \
+WANDERLOG_TRIP_KEY='trip-key' \
+npm run test:integration -- tests/integration/sharedb-smoke.test.ts
+```
+
+Optional variables for the ShareDB smoke test are `WANDERLOG_SMOKE_DAY`, such
+as `day 1` or `2026-04-02`, and `WANDERLOG_SMOKE_HEADING` for the replacement
+heading. Do not run this against a trip whose current day heading matters.
 
 Inspect package contents before publishing:
 

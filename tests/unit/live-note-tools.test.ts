@@ -38,6 +38,46 @@ function createClient(snapshot: unknown): {
 }
 
 describe("live note tools", () => {
+  it("adds a note block to the requested day section", async () => {
+    const { client, mutationClient } = createClient({
+      title: "Japan Golden Route",
+      itinerary: {
+        sections: [
+          {
+            mode: "dayPlan",
+            date: "2026-04-01",
+            blocks: [],
+          },
+        ],
+      },
+    });
+
+    await expect(
+      client.addNote({
+        tripId: "trip-key",
+        day: "2026-04-01",
+        text: "Reserve airport limousine bus seats.",
+      }),
+    ).resolves.toMatchObject({
+      tripId: "trip-key",
+      message: expect.stringContaining("Added note"),
+    });
+
+    expect(mutationClient.submitted).toEqual([
+      [
+        {
+          p: ["itinerary", "sections", 0, "blocks", 0],
+          li: {
+            type: "note",
+            text: {
+              ops: [{ insert: "Reserve airport limousine bus seats.\n" }],
+            },
+          },
+        },
+      ],
+    ]);
+  });
+
   it("edits one matching note block with a rich-text op", async () => {
     const { client, mutationClient } = createClient({
       title: "Japan Golden Route",

@@ -12,23 +12,32 @@ import type {
   CreatedTrip,
   GuideSearchResult,
   PlaceSearchResult,
+  RenameDayInput,
   TripDay,
   TripDetail,
+  TripExpense,
   TripItem,
   TripSummary,
+  UpdateTripDatesInput,
 } from "../wanderlog/types.js";
 
 type TripClient = Pick<
   WanderlogClient,
+  | "addNote"
   | "annotatePlace"
   | "createTrip"
+  | "editExpense"
   | "editNote"
   | "getGuide"
   | "getTrip"
+  | "listExpenses"
   | "listTrips"
+  | "renameDay"
+  | "removeExpense"
   | "removeNote"
   | "searchGuides"
   | "searchPlaces"
+  | "updateTripDates"
 >;
 
 const tripIdSchema = {
@@ -189,6 +198,80 @@ const editNoteSchema = {
 const removeNoteSchema = {
   tripId: z.string().min(1).describe("Wanderlog trip key."),
   text: z.string().min(1).describe("Note text to match and remove."),
+};
+
+const expenseFilterSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  description: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Optional case-insensitive expense description filter."),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Optional exact expense date, YYYY-MM-DD."),
+  amount: z.number().positive().optional().describe("Optional exact amount."),
+  currency: z
+    .string()
+    .length(3)
+    .optional()
+    .describe("Optional ISO 4217 currency code, e.g. USD."),
+};
+
+const editExpenseSchema = {
+  ...expenseFilterSchema,
+  description: z
+    .string()
+    .min(1)
+    .describe("Case-insensitive expense description to edit."),
+  newDescription: z.string().min(1).optional().describe("New description."),
+  newAmount: z.number().positive().optional().describe("New amount."),
+  newCurrency: z
+    .string()
+    .length(3)
+    .optional()
+    .describe("New ISO 4217 currency code, e.g. EUR."),
+  newCategory: z.string().min(1).optional().describe("New category."),
+  newDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("New expense date, YYYY-MM-DD."),
+};
+
+const removeExpenseSchema = {
+  ...expenseFilterSchema,
+  description: z
+    .string()
+    .min(1)
+    .describe("Case-insensitive expense description to remove."),
+};
+
+const updateTripDatesSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("New first day of the trip, YYYY-MM-DD."),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("New last day of the trip, YYYY-MM-DD."),
+  force: z
+    .boolean()
+    .optional()
+    .describe("Allow removing day sections that contain itinerary blocks."),
+};
+
+const renameDaySchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  day: z
+    .string()
+    .min(1)
+    .describe("Day to rename, for example day 2 or 2026-04-02."),
+  heading: z.string().describe("New day heading. Use empty string to clear."),
 };
 
 const listDraftsSchema = {
@@ -403,20 +486,16 @@ export function registerTripTools(
     "wanderlog_add_note",
     {
       title: "Add Wanderlog note",
-      description:
-        "Save a practical note draft for a day or unscheduled trip list.",
+      description: "Add a practical note to one live Wanderlog day section.",
       inputSchema: addNoteSchema,
-      annotations: localDraftAnnotations,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
-    async ({ tripId, text, day }) => {
-      const input: CreateDraftInput = {
-        kind: "note",
-        tripId,
-        text,
-        ...(day !== undefined && { day }),
-      };
-      return formatDraftCreatedResult(await draftStore.create(input));
-    },
+    async (input) => formatTripMutationResult(await client.addNote(input)),
   );
 
   server.registerTool(
@@ -529,6 +608,90 @@ export function registerTripTools(
       },
     },
     async (input) => formatTripMutationResult(await client.removeNote(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_list_expenses",
+    {
+      title: "List Wanderlog expenses",
+      description: "List live budget expenses for a Wanderlog trip.",
+      inputSchema: expenseFilterSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      formatExpenseListResult(input.tripId, await client.listExpenses(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_edit_expense",
+    {
+      title: "Edit Wanderlog expense",
+      description: "Edit one live Wanderlog budget expense.",
+      inputSchema: editExpenseSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => formatTripMutationResult(await client.editExpense(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_expense",
+    {
+      title: "Remove Wanderlog expense",
+      description: "Remove one live Wanderlog budget expense.",
+      inputSchema: removeExpenseSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      formatTripMutationResult(await client.removeExpense(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_update_trip_dates",
+    {
+      title: "Update Wanderlog trip dates",
+      description: "Update a live Wanderlog trip date range.",
+      inputSchema: updateTripDatesSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input: UpdateTripDatesInput) =>
+      formatTripMutationResult(await client.updateTripDates(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_rename_day",
+    {
+      title: "Rename Wanderlog day",
+      description: "Rename the heading for one live Wanderlog day section.",
+      inputSchema: renameDaySchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input: RenameDayInput) =>
+      formatTripMutationResult(await client.renameDay(input)),
   );
 
   server.registerTool(
@@ -704,6 +867,39 @@ export function formatTripMutationResult(result: {
   return {
     content: [{ type: "text", text: result.message }],
     structuredContent: { result },
+  };
+}
+
+export function formatExpenseListResult(
+  tripId: string,
+  expenses: TripExpense[],
+): CallToolResult {
+  if (expenses.length === 0) {
+    return {
+      content: [
+        { type: "text", text: `No expenses found for trip ${tripId}.` },
+      ],
+      structuredContent: { expenses },
+    };
+  }
+
+  const noun = expenses.length === 1 ? "expense" : "expenses";
+  const lines = expenses.map((expense, index) => {
+    const currency = expense.currency ?? "?";
+    const amount = expense.amount ?? "?";
+    const category = expense.category ? ` (${expense.category})` : "";
+    const date = expense.date ? ` on ${expense.date}` : "";
+    return `${index + 1}. ${currency} ${amount} - ${expense.description}${category}${date}`;
+  });
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `${expenses.length} ${noun} for trip ${tripId}:\n${lines.join("\n")}`,
+      },
+    ],
+    structuredContent: { expenses },
   };
 }
 
