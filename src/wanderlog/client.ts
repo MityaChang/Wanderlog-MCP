@@ -1,5 +1,6 @@
 import type {
   AddChecklistInput,
+  AddExpenseInput,
   AddHotelInput,
   AddNoteInput,
   AddPlaceInput,
@@ -198,7 +199,24 @@ export class WanderlogClient {
   }
 
   async addPlace(input: AddPlaceInput): Promise<TripMutationResult> {
-    return this.mutationTransportNotImplemented(input.tripId, "add places");
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = input.day
+      ? findDaySection(snapshot, input.day)
+      : findFirstDaySection(snapshot);
+    const blocks = getSectionBlocks(match.section);
+    const placeBlock = createPlaceBlock(input);
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: ["itinerary", "sections", match.index, "blocks", blocks.length],
+        li: placeBlock,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Added ${input.place} to day ${match.date} in ${getSnapshotTitle(snapshot)}.`,
+    };
   }
 
   async addNote(input: AddNoteInput): Promise<TripMutationResult> {
@@ -223,11 +241,90 @@ export class WanderlogClient {
   }
 
   async addHotel(input: AddHotelInput): Promise<TripMutationResult> {
-    return this.mutationTransportNotImplemented(input.tripId, "add hotels");
+    if (input.checkOut <= input.checkIn) {
+      throw new Error(
+        `checkOut (${input.checkOut}) must be after checkIn (${input.checkIn}).`,
+      );
+    }
+
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = findFirstDaySection(snapshot);
+    const blocks = getSectionBlocks(match.section);
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: ["itinerary", "sections", match.index, "blocks", blocks.length],
+        li: {
+          type: "place",
+          place: { name: input.hotel },
+          hotel: { checkIn: input.checkIn, checkOut: input.checkOut },
+        },
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Added ${input.hotel} to day ${match.date} in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async addExpense(input: AddExpenseInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const expenses = getRawExpenses(snapshot);
+    const today = new Date().toISOString().slice(0, 10);
+    const expense: Record<string, unknown> = {
+      id: Date.now(),
+      description: input.title,
+      amount: {
+        amount: input.amount,
+        currencyCode: input.currency.toUpperCase(),
+      },
+      category: "other",
+      date: today,
+      associatedDate: today,
+      blockId: null,
+      paidBy: input.paidBy,
+      splitWith: input.splitWith ?? [],
+    };
+    if (input.note !== undefined) {
+      expense.note = input.note;
+    }
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: ["itinerary", "budget", "expenses", expenses.length],
+        li: expense,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Added expense ${input.title} to ${getSnapshotTitle(snapshot)}.`,
+    };
   }
 
   async addChecklist(input: AddChecklistInput): Promise<TripMutationResult> {
-    return this.mutationTransportNotImplemented(input.tripId, "add checklists");
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const match = input.day
+      ? findDaySection(snapshot, input.day)
+      : findFirstDaySection(snapshot);
+    const blocks = getSectionBlocks(match.section);
+    const checklistBlock = createChecklistBlock(
+      input.items,
+      input.title ?? "Checklist",
+    );
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: ["itinerary", "sections", match.index, "blocks", blocks.length],
+        li: checklistBlock,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Added checklist to day ${match.date} in ${getSnapshotTitle(snapshot)}.`,
+    };
   }
 
   async annotatePlace(input: AnnotatePlaceInput): Promise<TripMutationResult> {
@@ -695,6 +792,18 @@ function mapTripItem(item: RawWanderlogTripItem): TripItem {
   };
 }
 
+function createPlaceBlock(input: AddPlaceInput): Record<string, unknown> {
+  return {
+    type: "place",
+    place: { name: input.place },
+    ...(input.note !== undefined && {
+      text: { ops: [{ insert: `${input.note}\n` }] },
+    }),
+    ...(input.startTime !== undefined && { startTime: input.startTime }),
+    ...(input.endTime !== undefined && { endTime: input.endTime }),
+  };
+}
+
 function createObjectSetOp(
   path: Array<string | number>,
   source: Record<string, unknown>,
@@ -780,6 +889,20 @@ function createNoteBlock(text: string): Record<string, unknown> {
   return {
     type: "note",
     text: { ops: [{ insert: text.endsWith("\n") ? text : `${text}\n` }] },
+  };
+}
+
+function createChecklistBlock(
+  items: string[],
+  title: string,
+): Record<string, unknown> {
+  return {
+    type: "checklist",
+    title,
+    items: items.map((text) => ({
+      checked: false,
+      text: { ops: [{ insert: text.endsWith("\n") ? text : `${text}\n` }] },
+    })),
   };
 }
 

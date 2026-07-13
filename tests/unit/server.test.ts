@@ -6,9 +6,25 @@ describe("createServer", () => {
   it("creates an MCP server with a connect method", () => {
     const server = createServer(
       {
+        addChecklist: async () => ({
+          tripId: "test-trip",
+          message: "Added checklist.",
+        }),
+        addExpense: async () => ({
+          tripId: "test-trip",
+          message: "Added expense.",
+        }),
+        addHotel: async () => ({
+          tripId: "test-trip",
+          message: "Added hotel.",
+        }),
         addNote: async () => ({
           tripId: "test-trip",
           message: "Added note.",
+        }),
+        addPlace: async () => ({
+          tripId: "test-trip",
+          message: "Added place.",
         }),
         annotatePlace: async () => ({
           tripId: "test-trip",

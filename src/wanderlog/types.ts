@@ -156,6 +156,16 @@ export interface ListExpensesInput {
   currency?: string;
 }
 
+export interface AddExpenseInput {
+  tripId: string;
+  title: string;
+  amount: number;
+  currency: string;
+  paidBy: string;
+  splitWith?: string[];
+  note?: string;
+}
+
 export interface EditExpenseInput extends ListExpensesInput {
   description: string;
   newDescription?: string;

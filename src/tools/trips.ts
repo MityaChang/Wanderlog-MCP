@@ -23,7 +23,11 @@ import type {
 
 type TripClient = Pick<
   WanderlogClient,
+  | "addChecklist"
+  | "addExpense"
+  | "addHotel"
   | "addNote"
+  | "addPlace"
   | "annotatePlace"
   | "createTrip"
   | "editExpense"
@@ -464,22 +468,16 @@ export function registerTripTools(
     "wanderlog_add_place",
     {
       title: "Add Wanderlog place",
-      description: "Save a place draft for a day or unscheduled trip list.",
+      description: "Add a place to one live Wanderlog day section.",
       inputSchema: addPlaceSchema,
-      annotations: localDraftAnnotations,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
-    async ({ tripId, place, day, note, startTime, endTime }) => {
-      const input: CreateDraftInput = {
-        kind: "place",
-        tripId,
-        place,
-        ...(day !== undefined && { day }),
-        ...(note !== undefined && { note }),
-        ...(startTime !== undefined && { startTime }),
-        ...(endTime !== undefined && { endTime }),
-      };
-      return formatDraftCreatedResult(await draftStore.create(input));
-    },
+    async (input) => formatTripMutationResult(await client.addPlace(input)),
   );
 
   server.registerTool(
@@ -502,63 +500,48 @@ export function registerTripTools(
     "wanderlog_add_hotel",
     {
       title: "Add Wanderlog hotel",
-      description: "Save a lodging draft with check-in and check-out dates.",
+      description: "Add a hotel to the first live Wanderlog day section.",
       inputSchema: addHotelSchema,
-      annotations: localDraftAnnotations,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
-    async ({ tripId, hotel, checkIn, checkOut }) => {
-      const input: CreateDraftInput = {
-        kind: "hotel",
-        tripId,
-        hotel,
-        ...(checkIn !== undefined && { checkIn }),
-        ...(checkOut !== undefined && { checkOut }),
-      };
-      return formatDraftCreatedResult(await draftStore.create(input));
-    },
+    async (input) => formatTripMutationResult(await client.addHotel(input)),
   );
 
   server.registerTool(
     "wanderlog_add_checklist",
     {
       title: "Add Wanderlog checklist",
-      description: "Save a trip-level or day-level checklist draft.",
+      description: "Add a checklist to one live Wanderlog day section.",
       inputSchema: addChecklistSchema,
-      annotations: localDraftAnnotations,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
-    async ({ tripId, items, title, day }) => {
-      const input: CreateDraftInput = {
-        kind: "checklist",
-        tripId,
-        title: title ?? "Checklist",
-        items,
-        ...(day !== undefined && { day }),
-      };
-      return formatDraftCreatedResult(await draftStore.create(input));
-    },
+    async (input) => formatTripMutationResult(await client.addChecklist(input)),
   );
 
   server.registerTool(
     "wanderlog_add_expense",
     {
       title: "Add Wanderlog expense",
-      description: "Save an expense draft for a trip.",
+      description: "Add an unlinked budget expense to a live Wanderlog trip.",
       inputSchema: addExpenseSchema,
-      annotations: localDraftAnnotations,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
-    async ({ tripId, title, amount, currency, paidBy, splitWith, note }) => {
-      const input: CreateDraftInput = {
-        kind: "expense",
-        tripId,
-        title,
-        amount,
-        currency,
-        paidBy,
-        splitWith: splitWith ?? [],
-        ...(note !== undefined && { note }),
-      };
-      return formatDraftCreatedResult(await draftStore.create(input));
-    },
+    async (input) => formatTripMutationResult(await client.addExpense(input)),
   );
 
   server.registerTool(

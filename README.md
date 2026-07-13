@@ -236,13 +236,13 @@ your account has no trips, it should say no Wanderlog trips were found.
 | `wanderlog_get_trip_forwarding_email` | Returns a trip import email address when available.          |
 | `wanderlog_create_trip`               | Creates an empty trip from destination and dates.            |
 | `wanderlog_search_places`             | Finds real places near a latitude and longitude.             |
-| `wanderlog_add_place`                 | Adds a place to a local draft itinerary.                     |
+| `wanderlog_add_place`                 | Adds a place to one live Wanderlog day section.              |
 | `wanderlog_add_note`                  | Adds a practical note to one live day section.               |
-| `wanderlog_add_hotel`                 | Adds lodging to a local draft itinerary.                     |
-| `wanderlog_add_checklist`             | Adds a checklist to a local draft itinerary.                 |
+| `wanderlog_add_hotel`                 | Adds a hotel to one live Wanderlog day section.              |
+| `wanderlog_add_checklist`             | Adds a checklist to one live Wanderlog day section.          |
 | `wanderlog_update_draft`              | Updates an item in a local draft itinerary.                  |
 | `wanderlog_delete_draft`              | Deletes an item from a local draft itinerary.                |
-| `wanderlog_add_expense`               | Adds an expense entry to a local draft itinerary.            |
+| `wanderlog_add_expense`               | Adds an unlinked budget expense to a live Wanderlog trip.    |
 | `wanderlog_annotate_place`            | Updates an existing live place note or time.                 |
 | `wanderlog_edit_note`                 | Replaces text in one existing live note.                     |
 | `wanderlog_remove_note`               | Removes one existing live note.                              |
@@ -254,10 +254,9 @@ your account has no trips, it should say no Wanderlog trips were found.
 | `wanderlog_list_drafts`               | Lists all items currently held in the local draft store.     |
 | `wanderlog_export_drafts`             | Exports the local draft store as JSON for review or handoff. |
 
-> **Note:** add-place, add-hotel, add-checklist, add-expense, list draft,
-> update draft, delete draft, and export draft tools operate on local drafts in
-> a user-local JSON file. Live tools use Wanderlog's private ShareDB transport
-> and should be tested on disposable trip data first.
+> **Note:** list draft, update draft, delete draft, and export draft tools
+> operate on local drafts in a user-local JSON file. Live tools use Wanderlog's
+> private ShareDB transport and should be tested on disposable trip data first.
 
 ## Example Prompts
 

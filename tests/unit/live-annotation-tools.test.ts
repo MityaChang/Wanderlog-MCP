@@ -143,8 +143,8 @@ describe("live place annotation tools", () => {
     expect(handlers.has("wanderlog_annotate_place")).toBe(true);
     expect(handlers.has("wanderlog_edit_note")).toBe(true);
     expect(handlers.has("wanderlog_remove_note")).toBe(true);
-    expect(definitions.get("wanderlog_add_place")?.description).toBe(
-      "Save a place draft for a day or unscheduled trip list.",
+    expect(definitions.get("wanderlog_add_checklist")?.description).toBe(
+      "Add a checklist to one live Wanderlog day section.",
     );
   });
 });

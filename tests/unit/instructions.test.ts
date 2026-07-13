@@ -39,7 +39,10 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toMatch(
       /local drafts.*not.*live|not.*live.*local drafts/is,
     );
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toMatch(/add-place.*local/i);
     expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toMatch(/add-note.*local/i);
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toMatch(/add-expense.*local/i);
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toContain("The add-hotel tool");
   });
 
   it("does not describe draft storage as in-memory (regression guard)", () => {
