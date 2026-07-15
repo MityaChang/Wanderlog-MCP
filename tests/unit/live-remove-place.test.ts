@@ -66,8 +66,9 @@ const draftStore: DraftItineraryStore = {
   exportTrip: async () => "Local Wanderlog drafts",
 };
 
-describe("live place annotation tools", () => {
-  it("annotates one matching place with note and time ops", async () => {
+describe("live remove place tools", () => {
+  it("removes a uniquely matched place with one ld operation", async () => {
+    const placeBlock = { type: "place", place: { name: "Tokyo Station" } };
     const { client, mutationClient } = createClient({
       title: "Japan Golden Route",
       itinerary: {
@@ -75,92 +76,68 @@ describe("live place annotation tools", () => {
           {
             mode: "dayPlan",
             date: "2026-04-01",
-            blocks: [
-              {
-                type: "place",
-                place: { name: "Tokyo Station" },
-                startTime: "09:00",
-              },
-            ],
+            blocks: [placeBlock],
           },
         ],
       },
     });
 
     await expect(
-      client.annotatePlace({
+      client.removePlace({
         tripId: "trip-key",
         place: "Tokyo Station",
-        note: "Pick up bento before boarding.",
-        startTime: "10:00",
-        endTime: "11:00",
       }),
     ).resolves.toMatchObject({
       tripId: "trip-key",
-      message: expect.stringContaining("Updated Tokyo Station"),
+      message: expect.stringContaining("Tokyo Station"),
     });
 
     expect(mutationClient.submitted).toEqual([
       [
         {
-          p: ["itinerary", "sections", 0, "blocks", 0, "text"],
-          t: "rich-text",
-          o: [{ insert: "Pick up bento before boarding.\n" }],
-        },
-        {
-          p: ["itinerary", "sections", 0, "blocks", 0, "startTime"],
-          oi: "10:00",
-          od: "09:00",
-        },
-        {
-          p: ["itinerary", "sections", 0, "blocks", 0, "endTime"],
-          oi: "11:00",
+          p: ["itinerary", "sections", 0, "blocks", 0],
+          ld: placeBlock,
         },
       ],
     ]);
   });
 
-  it("resolves a compound day reference to annotate the correct duplicate place", async () => {
-    // Two sections each have a "Central Station" — compound ref disambiguates.
+  it("removes the correct duplicate via ordinal selection", async () => {
+    const block0 = { type: "place", place: { name: "Tsukiji Market" } };
+    const block1 = { type: "place", place: { name: "Tsukiji Market" } };
     const { client, mutationClient } = createClient({
-      title: "Japan Trip",
+      title: "Japan Golden Route",
       itinerary: {
         sections: [
           {
             mode: "dayPlan",
             date: "2026-04-01",
-            heading: "Tokyo",
-            blocks: [{ type: "place", place: { name: "Central Station" } }],
-          },
-          {
-            mode: "dayPlan",
-            date: "2026-04-02",
-            heading: "Kyoto",
-            blocks: [{ type: "place", place: { name: "Central Station" } }],
+            blocks: [block0, block1],
           },
         ],
       },
     });
 
     await expect(
-      client.annotatePlace({
+      client.removePlace({
         tripId: "trip-key",
-        place: "Central Station on day 2",
-        note: "Arrive early.",
+        place: "2nd Tsukiji Market",
       }),
-    ).resolves.toMatchObject({
-      message: expect.stringContaining("Updated Central Station"),
-    });
+    ).resolves.toMatchObject({ tripId: "trip-key" });
 
-    // Must target section 1 (day 2), not section 0
-    expect(mutationClient.submitted[0]?.[0]).toMatchObject({
-      p: ["itinerary", "sections", 1, "blocks", 0, "text"],
-    });
+    expect(mutationClient.submitted).toEqual([
+      [
+        {
+          p: ["itinerary", "sections", 0, "blocks", 1],
+          ld: block1,
+        },
+      ],
+    ]);
   });
 
-  it("throws a clear error when no place matches the reference", async () => {
-    const { client } = createClient({
-      title: "Japan Trip",
+  it("throws a clear error and submits no operation when place is not found", async () => {
+    const { client, mutationClient } = createClient({
+      title: "Japan Golden Route",
       itinerary: {
         sections: [
           {
@@ -173,17 +150,18 @@ describe("live place annotation tools", () => {
     });
 
     await expect(
-      client.annotatePlace({
+      client.removePlace({
         tripId: "trip-key",
         place: "Nonexistent Place",
-        note: "Note.",
       }),
     ).rejects.toThrow('No place matching "Nonexistent Place" found.');
+
+    expect(mutationClient.submitted).toHaveLength(0);
   });
 
-  it("throws a clear error listing candidates when multiple places match", async () => {
-    const { client } = createClient({
-      title: "Japan Trip",
+  it("throws a clear error listing candidates when multiple places match and submits no operation", async () => {
+    const { client, mutationClient } = createClient({
+      title: "Japan Golden Route",
       itinerary: {
         sections: [
           {
@@ -199,39 +177,48 @@ describe("live place annotation tools", () => {
     });
 
     await expect(
-      client.annotatePlace({
+      client.removePlace({
         tripId: "trip-key",
         place: "Tokyo Station",
-        note: "Note.",
       }),
-    ).rejects.toThrow("Multiple places matching");
+    ).rejects.toThrow('Multiple places matching "Tokyo Station" found:');
+
+    expect(mutationClient.submitted).toHaveLength(0);
   });
 
-  it("registers live note and place annotation tools without changing remaining local draft wording", async () => {
-    const { client } = createClient({
+  it("registers wanderlog_remove_place and routes calls to client.removePlace", async () => {
+    const { client, mutationClient } = createClient({
       title: "Japan Golden Route",
-      itinerary: { sections: [] },
+      itinerary: {
+        sections: [
+          {
+            mode: "dayPlan",
+            date: "2026-04-01",
+            blocks: [{ type: "place", place: { name: "Tokyo Station" } }],
+          },
+        ],
+      },
     });
-    const definitions = new Map<string, { description?: string }>();
     const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
     const server = {
       registerTool: (
         name: string,
-        definition: { description?: string },
+        _definition: unknown,
         handler: (input: unknown) => Promise<unknown>,
       ) => {
-        definitions.set(name, definition);
         handlers.set(name, handler);
       },
     };
 
     registerTripTools(server as never, client, draftStore);
 
-    expect(handlers.has("wanderlog_annotate_place")).toBe(true);
-    expect(handlers.has("wanderlog_edit_note")).toBe(true);
-    expect(handlers.has("wanderlog_remove_note")).toBe(true);
-    expect(definitions.get("wanderlog_add_checklist")?.description).toBe(
-      "Add a checklist to one live Wanderlog day section.",
-    );
+    expect(handlers.has("wanderlog_remove_place")).toBe(true);
+
+    await handlers.get("wanderlog_remove_place")?.({
+      tripId: "trip-key",
+      place: "Tokyo Station",
+    });
+
+    expect(mutationClient.submitted).toHaveLength(1);
   });
 });

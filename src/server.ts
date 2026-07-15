@@ -11,7 +11,11 @@ import { WanderlogClient } from "./wanderlog/client.js";
 
 type TripClient = Pick<
   WanderlogClient,
+  | "addChecklist"
+  | "addExpense"
+  | "addHotel"
   | "addNote"
+  | "addPlace"
   | "annotatePlace"
   | "createTrip"
   | "editExpense"
@@ -23,6 +27,7 @@ type TripClient = Pick<
   | "renameDay"
   | "removeExpense"
   | "removeNote"
+  | "removePlace"
   | "searchGuides"
   | "searchPlaces"
   | "updateTripDates"

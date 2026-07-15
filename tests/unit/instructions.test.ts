@@ -23,6 +23,7 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_note");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_hotel");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_checklist");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_remove_place");
   });
 
   it("keeps instructions concise enough for MCP startup", () => {
@@ -39,7 +40,10 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toMatch(
       /local drafts.*not.*live|not.*live.*local drafts/is,
     );
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toMatch(/add-place.*local/i);
     expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toMatch(/add-note.*local/i);
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toMatch(/add-expense.*local/i);
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).not.toContain("The add-hotel tool");
   });
 
   it("does not describe draft storage as in-memory (regression guard)", () => {

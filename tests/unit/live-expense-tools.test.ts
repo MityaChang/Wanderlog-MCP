@@ -204,10 +204,63 @@ describe("live expense tools", () => {
     ]);
   });
 
-  it("registers live expense tools while keeping add expense local-draft wording", () => {
-    const { client } = createClient(createBudgetTrip());
-    const definitions = new Map<string, { description?: string }>();
+  it("appends an unlinked expense via JSON0 li op", async () => {
+    const { client, mutationClient } = createClient(createBudgetTrip());
+
+    const result = await client.addExpense({
+      tripId: "trip-key",
+      title: "Dinner at Nobu",
+      amount: 45.5,
+      currency: "usd",
+      paidBy: "Alex",
+      splitWith: ["Sam"],
+    });
+
+    expect(result).toMatchObject({
+      tripId: "trip-key",
+      message: expect.stringContaining("Dinner at Nobu"),
+    });
+
+    expect(mutationClient.submitted).toHaveLength(1);
+    const [ops] = mutationClient.submitted;
+    expect(ops).toHaveLength(1);
+    const [op] = ops!;
+    expect(op!.p).toEqual(["itinerary", "budget", "expenses", 2]);
+    expect(op!.ld).toBeUndefined();
+    expect(op!.li).toMatchObject({
+      description: "Dinner at Nobu",
+      amount: { amount: 45.5, currencyCode: "USD" },
+      blockId: null,
+      paidBy: "Alex",
+      splitWith: ["Sam"],
+    });
+  });
+
+  it("preserves optional expense note and defaults splitWith to an empty list", async () => {
+    const { client, mutationClient } = createClient(createBudgetTrip());
+
+    await client.addExpense({
+      tripId: "trip-key",
+      title: "Coffee",
+      amount: 4.5,
+      currency: "USD",
+      paidBy: "Alex",
+      note: "Use the station kiosk.",
+    });
+
+    expect(mutationClient.submitted[0]?.[0]?.li).toMatchObject({
+      description: "Coffee",
+      paidBy: "Alex",
+      splitWith: [],
+      note: "Use the station kiosk.",
+    });
+  });
+
+  it("routes wanderlog_add_expense through the live client", async () => {
+    const { client, mutationClient } = createClient(createBudgetTrip());
+    let createdDraft: unknown = null;
     const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
+    const definitions = new Map<string, { description?: string }>();
     const server = {
       registerTool: (
         name: string,
@@ -218,13 +271,32 @@ describe("live expense tools", () => {
         handlers.set(name, handler);
       },
     };
+    const trackingDraftStore: DraftItineraryStore = {
+      ...draftStore,
+      create: async (input) => {
+        createdDraft = input;
+        return {
+          ...input,
+          draftId: "draft-1",
+          createdAt: "2026-07-04T00:00:00.000Z",
+          updatedAt: "2026-07-04T00:00:00.000Z",
+        };
+      },
+    };
 
-    registerTripTools(server as never, client, draftStore);
+    registerTripTools(server as never, client, trackingDraftStore);
 
-    expect(handlers.has("wanderlog_list_expenses")).toBe(true);
-    expect(handlers.has("wanderlog_edit_expense")).toBe(true);
-    expect(handlers.has("wanderlog_remove_expense")).toBe(true);
-    expect(definitions.get("wanderlog_add_expense")?.description).toBe(
+    await handlers.get("wanderlog_add_expense")?.({
+      tripId: "trip-key",
+      title: "Shinkansen pass",
+      amount: 120,
+      currency: "USD",
+      paidBy: "Alex",
+    });
+
+    expect(createdDraft).toBeNull();
+    expect(mutationClient.submitted).toHaveLength(1);
+    expect(definitions.get("wanderlog_add_expense")?.description).not.toBe(
       "Save an expense draft for a trip.",
     );
   });
