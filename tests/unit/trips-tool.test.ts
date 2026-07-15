@@ -456,6 +456,10 @@ describe("registerTripTools", () => {
           tripId: "trip-key",
           message: "Removed note.",
         }),
+        removePlace: async () => ({
+          tripId: "trip-key",
+          message: "Removed place.",
+        }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Vietnam", country: null },
           guides: [],
@@ -577,6 +581,10 @@ describe("registerTripTools", () => {
         removeNote: async () => ({
           tripId: "trip-key",
           message: "Removed note.",
+        }),
+        removePlace: async () => ({
+          tripId: "trip-key",
+          message: "Removed place.",
         }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Vietnam", country: null },
@@ -701,6 +709,10 @@ describe("registerTripTools", () => {
           tripId: "trip-key",
           message: "Removed note.",
         }),
+        removePlace: async () => ({
+          tripId: "trip-key",
+          message: "Removed place.",
+        }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Vietnam", country: null },
           guides: [],
@@ -809,6 +821,10 @@ describe("registerTripTools", () => {
         removeNote: async () => ({
           tripId: "trip-key",
           message: "Removed note.",
+        }),
+        removePlace: async () => ({
+          tripId: "trip-key",
+          message: "Removed place.",
         }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Tokyo", country: null },

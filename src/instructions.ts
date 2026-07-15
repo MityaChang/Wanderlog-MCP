@@ -7,12 +7,13 @@ inspiration before drafting an itinerary, or to inspect one guide day.
 Interleave wanderlog_add_place and wanderlog_add_note calls for day-by-day
 places, transit, booking details, timing, and local context. Use
 wanderlog_annotate_place, wanderlog_edit_note,
-wanderlog_remove_note, wanderlog_add_expense, wanderlog_list_expenses,
-wanderlog_edit_expense, wanderlog_remove_expense, wanderlog_update_trip_dates,
-and wanderlog_rename_day only when the user asks to change an existing live
-Wanderlog trip. Add lodging with wanderlog_add_hotel when requested. Add a
-pre-trip checklist or day checklist with wanderlog_add_checklist for documents,
-tickets, currency, offline maps, reservations, and day-specific tasks.
+wanderlog_remove_note, wanderlog_remove_place, wanderlog_add_expense,
+wanderlog_list_expenses, wanderlog_edit_expense, wanderlog_remove_expense,
+wanderlog_update_trip_dates, and wanderlog_rename_day only when the user asks
+to change an existing live Wanderlog trip. Add lodging with wanderlog_add_hotel
+when requested. Add a pre-trip checklist or day checklist with
+wanderlog_add_checklist for documents, tickets, currency, offline maps,
+reservations, and day-specific tasks.
 
 The draft update, draft delete, and draft export tools operate on local drafts
 stored in a user-local JSON file. Local drafts are not live Wanderlog writes.

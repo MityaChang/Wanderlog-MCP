@@ -39,6 +39,7 @@ type TripClient = Pick<
   | "renameDay"
   | "removeExpense"
   | "removeNote"
+  | "removePlace"
   | "searchGuides"
   | "searchPlaces"
   | "updateTripDates"
@@ -191,6 +192,16 @@ const annotatePlaceSchema = {
     .regex(/^\d{2}:\d{2}$/)
     .optional()
     .describe("Optional end time in HH:mm."),
+};
+
+const removePlaceSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  place: z
+    .string()
+    .min(1)
+    .describe(
+      "Natural-language reference to the place to remove. Supports ordinal prefixes for duplicates: '1st X', '2nd X', 'last X'. Supports day filters: 'X on day 2' or 'X on 2026-04-02'.",
+    ),
 };
 
 const editNoteSchema = {
@@ -591,6 +602,23 @@ export function registerTripTools(
       },
     },
     async (input) => formatTripMutationResult(await client.removeNote(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_place",
+    {
+      title: "Remove Wanderlog place",
+      description:
+        "Remove one existing place from a live Wanderlog trip. Use an ordinal prefix (1st, 2nd, last) or a day filter (on day 2) to resolve duplicates.",
+      inputSchema: removePlaceSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => formatTripMutationResult(await client.removePlace(input)),
   );
 
   server.registerTool(

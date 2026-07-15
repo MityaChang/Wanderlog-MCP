@@ -189,6 +189,10 @@ describe("live hotel tools", () => {
           tripId: "trip-key",
           message: "Removed note.",
         }),
+        removePlace: async () => ({
+          tripId: "trip-key",
+          message: "Removed place.",
+        }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Tokyo", country: null },
           guides: [],

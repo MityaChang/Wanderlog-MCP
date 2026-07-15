@@ -263,6 +263,10 @@ describe("live checklist tools", () => {
           tripId: "trip-key",
           message: "Removed note.",
         }),
+        removePlace: async () => ({
+          tripId: "trip-key",
+          message: "Removed place.",
+        }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Japan", country: null },
           guides: [],

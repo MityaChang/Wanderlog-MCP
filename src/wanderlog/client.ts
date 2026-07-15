@@ -9,6 +9,7 @@ import type {
   CreateTripInput,
   EditExpenseInput,
   EditNoteInput,
+  RemovePlaceInput,
   GuideSearchResult,
   ListExpensesInput,
   PlaceSearchResult,
@@ -42,6 +43,7 @@ import type {
 import type { ServerConfig } from "../config.js";
 import type { Json0Op } from "../ot/apply.js";
 import { TripMutationCache } from "./trip-cache.js";
+import { resolvePlaceRef } from "./resolvers/place-ref.js";
 
 export const LIST_TRIPS_PATH = "/api/tripPlans/home";
 
@@ -335,7 +337,19 @@ export class WanderlogClient {
     }
 
     const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
-    const match = findPlaceBlock(snapshot, input.place);
+    const resolved = resolvePlaceRef(snapshot, input.place);
+
+    if (resolved.kind === "none") {
+      throw new Error(`No place matching "${input.place}" found.`);
+    }
+    if (resolved.kind === "ambiguous") {
+      const names = resolved.candidates.map((c) => c.name).join(", ");
+      throw new Error(
+        `Multiple places matching "${input.place}" found: ${names}.`,
+      );
+    }
+
+    const match = resolved.match;
     const block = match.block as Record<string, unknown>;
     const path = [
       "itinerary",
@@ -545,6 +559,41 @@ export class WanderlogClient {
     return {
       tripId: input.tripId,
       message: `Renamed day ${match.date} in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async removePlace(input: RemovePlaceInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const resolved = resolvePlaceRef(snapshot, input.place);
+
+    if (resolved.kind === "none") {
+      throw new Error(`No place matching "${input.place}" found.`);
+    }
+    if (resolved.kind === "ambiguous") {
+      const names = resolved.candidates.map((c) => c.name).join(", ");
+      throw new Error(
+        `Multiple places matching "${input.place}" found: ${names}.`,
+      );
+    }
+
+    const match = resolved.match;
+
+    await this.tripMutationCache.submit(input.tripId, [
+      {
+        p: [
+          "itinerary",
+          "sections",
+          match.sectionIndex,
+          "blocks",
+          match.blockIndex,
+        ],
+        ld: match.block,
+      },
+    ]);
+
+    return {
+      tripId: input.tripId,
+      message: `Removed ${match.name} from ${getSnapshotTitle(snapshot)}.`,
     };
   }
 

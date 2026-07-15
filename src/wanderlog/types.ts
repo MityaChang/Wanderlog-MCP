@@ -192,6 +192,11 @@ export interface RenameDayInput {
   heading: string;
 }
 
+export interface RemovePlaceInput {
+  tripId: string;
+  place: string;
+}
+
 export interface RawWanderlogGeo {
   id?: number | null;
   name?: string | null;

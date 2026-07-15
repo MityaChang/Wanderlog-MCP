@@ -63,6 +63,10 @@ describe("createServer", () => {
           tripId: "test-trip",
           message: "Removed note.",
         }),
+        removePlace: async () => ({
+          tripId: "test-trip",
+          message: "Removed place.",
+        }),
         searchGuides: async () => ({
           geo: { id: 1, name: "Test destination", country: null },
           guides: [],

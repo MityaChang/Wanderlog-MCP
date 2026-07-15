@@ -23,6 +23,7 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_note");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_hotel");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_checklist");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_remove_place");
   });
 
   it("keeps instructions concise enough for MCP startup", () => {

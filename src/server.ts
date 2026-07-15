@@ -27,6 +27,7 @@ type TripClient = Pick<
   | "renameDay"
   | "removeExpense"
   | "removeNote"
+  | "removePlace"
   | "searchGuides"
   | "searchPlaces"
   | "updateTripDates"
