@@ -197,6 +197,23 @@ export interface RemovePlaceInput {
   place: string;
 }
 
+export interface AddSectionInput {
+  tripId: string;
+  heading?: string;
+  afterSection?: string;
+}
+
+export interface UpdateSectionInput {
+  tripId: string;
+  section: string;
+  heading: string;
+}
+
+export interface DeleteSectionInput {
+  tripId: string;
+  section: string;
+}
+
 export interface RawWanderlogGeo {
   id?: number | null;
   name?: string | null;

@@ -4,9 +4,11 @@ import type {
   AddHotelInput,
   AddNoteInput,
   AddPlaceInput,
+  AddSectionInput,
   AnnotatePlaceInput,
   CreatedTrip,
   CreateTripInput,
+  DeleteSectionInput,
   EditExpenseInput,
   EditNoteInput,
   RemovePlaceInput,
@@ -32,6 +34,7 @@ import type {
   TripItem,
   TripMutationResult,
   TripSummary,
+  UpdateSectionInput,
   UpdateTripDatesInput,
   WanderlogCreateTripResponse,
   WanderlogGeoAutocompleteResponse,
@@ -46,6 +49,8 @@ import { TripMutationCache } from "./trip-cache.js";
 import { resolvePlaceRef } from "./resolvers/place-ref.js";
 
 export const LIST_TRIPS_PATH = "/api/tripPlans/home";
+
+const SYSTEM_SECTION_TYPES = new Set(["hotels", "flights", "transit"]);
 
 export function getTripPath(tripId: string): string {
   return `/api/tripPlans/${encodeURIComponent(tripId)}?clientSchemaVersion=2&registerView=true`;
@@ -594,6 +599,156 @@ export class WanderlogClient {
     return {
       tripId: input.tripId,
       message: `Removed ${match.name} from ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async addSection(input: AddSectionInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const sections = getItinerarySections(snapshot);
+
+    let insertIndex: number;
+    if (input.afterSection !== undefined) {
+      const found = findSectionByNormalizedHeading(
+        sections,
+        input.afterSection,
+      );
+      insertIndex = found + 1;
+    } else {
+      insertIndex = sections.length;
+    }
+
+    const heading = input.heading ?? "";
+    const section = createCustomSection(heading);
+
+    await this.tripMutationCache.submit(input.tripId, [
+      { p: ["itinerary", "sections", insertIndex], li: section },
+    ]);
+
+    const headingLabel = heading || "(untitled)";
+    const positionLabel = input.afterSection
+      ? `after "${input.afterSection}"`
+      : "at the end";
+    return {
+      tripId: input.tripId,
+      message: `Added section "${headingLabel}" ${positionLabel} in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async updateSection(input: UpdateSectionInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const sections = getItinerarySections(snapshot);
+    const index = findSectionByNormalizedHeading(sections, input.section);
+    const section = sections[index] as Record<string, unknown>;
+
+    if (section.mode === "dayPlan") {
+      throw new Error(
+        `Day sections cannot be renamed here. Use wanderlog_rename_day to change a day's heading instead.`,
+      );
+    }
+
+    const normalizedHeading = normalizeSearchText(
+      typeof section.heading === "string" ? section.heading : "",
+    );
+    if (
+      section.mode === "placeList" &&
+      (normalizedHeading === "places to visit" ||
+        normalizedHeading === "places")
+    ) {
+      throw new Error(
+        `The "Places to visit" section cannot be renamed — it is the trip's default place list. Use wanderlog_get_trip to see your custom sections.`,
+      );
+    }
+
+    if (
+      typeof section.type === "string" &&
+      SYSTEM_SECTION_TYPES.has(section.type)
+    ) {
+      const label =
+        typeof section.heading === "string" && section.heading
+          ? section.heading
+          : section.type;
+      throw new Error(
+        `The "${label}" section is a system section and cannot be renamed. Use wanderlog_get_trip to see your custom sections.`,
+      );
+    }
+
+    const oldHeading =
+      typeof section.heading === "string" ? section.heading : undefined;
+    const newHeading = input.heading;
+
+    if (oldHeading === newHeading) {
+      return {
+        tripId: input.tripId,
+        message: `Section heading is already "${newHeading || "(untitled)"}" — no change made.`,
+      };
+    }
+
+    await this.tripMutationCache.submit(input.tripId, [
+      createObjectSetOp(
+        ["itinerary", "sections", index, "heading"],
+        section,
+        "heading",
+        newHeading,
+      ),
+    ]);
+
+    const oldLabel = oldHeading || "(untitled)";
+    const newLabel = newHeading || "(untitled)";
+    return {
+      tripId: input.tripId,
+      message: `Renamed section "${oldLabel}" → "${newLabel}" in ${getSnapshotTitle(snapshot)}.`,
+    };
+  }
+
+  async deleteSection(input: DeleteSectionInput): Promise<TripMutationResult> {
+    const snapshot = await this.tripMutationCache.getSnapshot(input.tripId);
+    const sections = getItinerarySections(snapshot);
+    const index = findSectionByNormalizedHeading(sections, input.section);
+    const section = sections[index] as Record<string, unknown>;
+
+    if (section.mode === "dayPlan") {
+      throw new Error(
+        `Day sections cannot be deleted here. Use wanderlog_update_trip_dates to change the trip's date range instead.`,
+      );
+    }
+
+    const normalizedHeading = normalizeSearchText(
+      typeof section.heading === "string" ? section.heading : "",
+    );
+    if (
+      section.mode === "placeList" &&
+      (normalizedHeading === "places to visit" ||
+        normalizedHeading === "places")
+    ) {
+      throw new Error(
+        `The "Places to visit" section cannot be deleted — it is the trip's default place list.`,
+      );
+    }
+
+    if (
+      typeof section.type === "string" &&
+      SYSTEM_SECTION_TYPES.has(section.type)
+    ) {
+      const label =
+        typeof section.heading === "string" && section.heading
+          ? section.heading
+          : section.type;
+      throw new Error(
+        `The "${label}" section is a system section and cannot be deleted.`,
+      );
+    }
+
+    await this.tripMutationCache.submit(input.tripId, [
+      { p: ["itinerary", "sections", index], ld: section },
+    ]);
+
+    const label =
+      typeof section.heading === "string" && section.heading
+        ? section.heading
+        : "(untitled)";
+    return {
+      tripId: input.tripId,
+      message: `Deleted section "${label}" from ${getSnapshotTitle(snapshot)}.`,
     };
   }
 
@@ -1261,6 +1416,50 @@ function createEmptyDaySection(date: string): Record<string, unknown> {
     placeMarkerColor: "#3498db",
     placeMarkerIcon: "map-marker",
   };
+}
+
+function createCustomSection(heading: string): Record<string, unknown> {
+  return {
+    id: createMutationId(),
+    type: "normal",
+    mode: "placeList",
+    heading,
+    text: { ops: [{ insert: "\n" }] },
+    date: null,
+    blocks: [],
+    placeMarkerColor: "#3498db",
+    placeMarkerIcon: "map-marker",
+  };
+}
+
+function findSectionByNormalizedHeading(
+  sections: unknown[],
+  query: string,
+): number {
+  const normalizedQuery = normalizeSearchText(query);
+  const matches: number[] = [];
+
+  sections.forEach((section, index) => {
+    if (!isRecord(section)) {
+      return;
+    }
+    const heading = typeof section.heading === "string" ? section.heading : "";
+    if (normalizeSearchText(heading) === normalizedQuery) {
+      matches.push(index);
+    }
+  });
+
+  if (matches.length === 0) {
+    throw new Error(
+      `Section "${query}" not found. Use wanderlog_get_trip to see available sections.`,
+    );
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `Multiple sections matching "${query}" found. Use a more specific heading.`,
+    );
+  }
+  return matches[0]!;
 }
 
 function createMutationId(): number {

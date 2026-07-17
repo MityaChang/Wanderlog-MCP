@@ -419,6 +419,14 @@ describe("registerTripTools", () => {
           addedPlace = input;
           return { tripId: "trip-key", message: "Added place." };
         },
+        deleteSection: async () => ({
+          tripId: "trip-key",
+          message: "Deleted section.",
+        }),
+        addSection: async () => ({
+          tripId: "trip-key",
+          message: "Added section.",
+        }),
         annotatePlace: async () => ({
           tripId: "trip-key",
           message: "Updated place.",
@@ -465,6 +473,10 @@ describe("registerTripTools", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateSection: async () => ({
+          tripId: "trip-key",
+          message: "Renamed section.",
+        }),
         updateTripDates: async () => ({
           tripId: "trip-key",
           message: "Updated trip dates.",
@@ -541,9 +553,17 @@ describe("registerTripTools", () => {
           addedNote = input;
           return { tripId: "trip-key", message: "Added note." };
         },
+        deleteSection: async () => ({
+          tripId: "trip-key",
+          message: "Deleted section.",
+        }),
         addPlace: async () => ({
           tripId: "trip-key",
           message: "Added place.",
+        }),
+        addSection: async () => ({
+          tripId: "trip-key",
+          message: "Added section.",
         }),
         annotatePlace: async () => ({
           tripId: "trip-key",
@@ -591,6 +611,10 @@ describe("registerTripTools", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateSection: async () => ({
+          tripId: "trip-key",
+          message: "Renamed section.",
+        }),
         updateTripDates: async () => ({
           tripId: "trip-key",
           message: "Updated trip dates.",
@@ -669,6 +693,10 @@ describe("registerTripTools", () => {
           tripId: "trip-key",
           message: "Added place.",
         }),
+        addSection: async () => ({
+          tripId: "trip-key",
+          message: "Added section.",
+        }),
         annotatePlace: async () => ({
           tripId: "trip-key",
           message: "Updated place.",
@@ -689,6 +717,10 @@ describe("registerTripTools", () => {
         editNote: async () => ({
           tripId: "trip-key",
           message: "Updated note.",
+        }),
+        deleteSection: async () => ({
+          tripId: "trip-key",
+          message: "Deleted section.",
         }),
         getGuide: async (guideKey, options) => {
           guideRequest = { guideKey, options };
@@ -718,6 +750,10 @@ describe("registerTripTools", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateSection: async () => ({
+          tripId: "trip-key",
+          message: "Renamed section.",
+        }),
         updateTripDates: async () => ({
           tripId: "trip-key",
           message: "Updated trip dates.",
@@ -777,6 +813,10 @@ describe("registerTripTools", () => {
           addedHotel = input;
           return { tripId: "trip-key", message: "Added hotel." };
         },
+        deleteSection: async () => ({
+          tripId: "trip-key",
+          message: "Deleted section.",
+        }),
         addNote: async () => ({
           tripId: "trip-key",
           message: "Added note.",
@@ -784,6 +824,10 @@ describe("registerTripTools", () => {
         addPlace: async () => ({
           tripId: "trip-key",
           message: "Added place.",
+        }),
+        addSection: async () => ({
+          tripId: "trip-key",
+          message: "Added section.",
         }),
         annotatePlace: async () => ({
           tripId: "trip-key",
@@ -831,6 +875,10 @@ describe("registerTripTools", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateSection: async () => ({
+          tripId: "trip-key",
+          message: "Renamed section.",
+        }),
         updateTripDates: async () => ({
           tripId: "trip-key",
           message: "Updated trip dates.",

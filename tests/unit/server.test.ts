@@ -26,6 +26,10 @@ describe("createServer", () => {
           tripId: "test-trip",
           message: "Added place.",
         }),
+        addSection: async () => ({
+          tripId: "test-trip",
+          message: "Added section.",
+        }),
         annotatePlace: async () => ({
           tripId: "test-trip",
           message: "Updated place.",
@@ -75,6 +79,14 @@ describe("createServer", () => {
         updateTripDates: async () => ({
           tripId: "test-trip",
           message: "Updated trip dates.",
+        }),
+        updateSection: async () => ({
+          tripId: "test-trip",
+          message: "Renamed section.",
+        }),
+        deleteSection: async () => ({
+          tripId: "test-trip",
+          message: "Deleted section.",
         }),
       },
       {

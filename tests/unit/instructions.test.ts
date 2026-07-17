@@ -21,6 +21,8 @@ describe("WANDERLOG_SERVER_INSTRUCTIONS", () => {
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("one guide day");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_place");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_note");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_section");
+    expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_delete_section");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_hotel");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_add_checklist");
     expect(WANDERLOG_SERVER_INSTRUCTIONS).toContain("wanderlog_remove_place");

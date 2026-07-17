@@ -152,6 +152,10 @@ describe("live hotel tools", () => {
           tripId: "trip-key",
           message: "Added place.",
         }),
+        addSection: async () => ({
+          tripId: "trip-key",
+          message: "Added section.",
+        }),
         annotatePlace: async () => ({
           tripId: "trip-key",
           message: "Updated place.",
@@ -198,6 +202,14 @@ describe("live hotel tools", () => {
           guides: [],
         }),
         searchPlaces: async () => [],
+        updateSection: async () => ({
+          tripId: "trip-key",
+          message: "Renamed section.",
+        }),
+        deleteSection: async () => ({
+          tripId: "trip-key",
+          message: "Deleted section.",
+        }),
         updateTripDates: async () => ({
           tripId: "trip-key",
           message: "Updated trip dates.",

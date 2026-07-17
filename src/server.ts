@@ -16,8 +16,10 @@ type TripClient = Pick<
   | "addHotel"
   | "addNote"
   | "addPlace"
+  | "addSection"
   | "annotatePlace"
   | "createTrip"
+  | "deleteSection"
   | "editExpense"
   | "editNote"
   | "getGuide"
@@ -30,6 +32,7 @@ type TripClient = Pick<
   | "removePlace"
   | "searchGuides"
   | "searchPlaces"
+  | "updateSection"
   | "updateTripDates"
 >;
 
