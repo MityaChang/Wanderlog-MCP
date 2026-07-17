@@ -18,6 +18,7 @@ import type {
   TripExpense,
   TripItem,
   TripSummary,
+  UpdateSectionInput,
   UpdateTripDatesInput,
 } from "../wanderlog/types.js";
 
@@ -28,8 +29,10 @@ type TripClient = Pick<
   | "addHotel"
   | "addNote"
   | "addPlace"
+  | "addSection"
   | "annotatePlace"
   | "createTrip"
+  | "deleteSection"
   | "editExpense"
   | "editNote"
   | "getGuide"
@@ -42,6 +45,7 @@ type TripClient = Pick<
   | "removePlace"
   | "searchGuides"
   | "searchPlaces"
+  | "updateSection"
   | "updateTripDates"
 >;
 
@@ -287,6 +291,48 @@ const renameDaySchema = {
     .min(1)
     .describe("Day to rename, for example day 2 or 2026-04-02."),
   heading: z.string().describe("New day heading. Use empty string to clear."),
+};
+
+const addSectionSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  heading: z
+    .string()
+    .optional()
+    .describe(
+      "Heading for the new section (e.g. 'Food & Drink', 'Must-See Spots'). Omit for an untitled section.",
+    ),
+  afterSection: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Insert the new section immediately after an existing section identified by its heading. Omit to append at the end.",
+    ),
+};
+
+const updateSectionSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  section: z
+    .string()
+    .min(1)
+    .describe(
+      "The section to rename, identified by its current heading. Use wanderlog_get_trip to see available sections.",
+    ),
+  heading: z
+    .string()
+    .describe(
+      'New heading for the section. Pass "" (empty string) to clear it back to an untitled section.',
+    ),
+};
+
+const deleteSectionSchema = {
+  tripId: z.string().min(1).describe("Wanderlog trip key."),
+  section: z
+    .string()
+    .min(1)
+    .describe(
+      "The section to delete, identified by its heading. Use wanderlog_get_trip to see available sections.",
+    ),
 };
 
 const listDraftsSchema = {
@@ -703,6 +749,59 @@ export function registerTripTools(
     },
     async (input: RenameDayInput) =>
       formatTripMutationResult(await client.renameDay(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_add_section",
+    {
+      title: "Add Wanderlog section",
+      description:
+        "Add a new custom section to a live Wanderlog trip itinerary. Sections group places, notes, and other blocks thematically. The new section is empty; add content with wanderlog_add_place, wanderlog_add_note, or wanderlog_add_checklist.",
+      inputSchema: addSectionSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => formatTripMutationResult(await client.addSection(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_update_section",
+    {
+      title: "Rename Wanderlog section",
+      description:
+        "Renames the heading of a custom section in a live Wanderlog trip. Pass an empty string to clear the heading. Day sections, the default place list, and system sections (hotels, flights, transit) cannot be renamed with this tool.",
+      inputSchema: updateSectionSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input: UpdateSectionInput) =>
+      formatTripMutationResult(await client.updateSection(input)),
+  );
+
+  server.registerTool(
+    "wanderlog_delete_section",
+    {
+      title: "Delete Wanderlog section",
+      description:
+        "Permanently deletes a custom section and all its blocks from a live Wanderlog trip. Day sections, the default place list, and system sections (hotels, flights, transit) are protected and cannot be deleted with this tool.",
+      inputSchema: deleteSectionSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      formatTripMutationResult(await client.deleteSection(input)),
   );
 
   server.registerTool(

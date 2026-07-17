@@ -7,7 +7,9 @@ inspiration before drafting an itinerary, or to inspect one guide day.
 Interleave wanderlog_add_place and wanderlog_add_note calls for day-by-day
 places, transit, booking details, timing, and local context. Use
 wanderlog_annotate_place, wanderlog_edit_note,
-wanderlog_remove_note, wanderlog_remove_place, wanderlog_add_expense,
+wanderlog_remove_note, wanderlog_remove_place, wanderlog_add_section,
+wanderlog_update_section, wanderlog_delete_section,
+wanderlog_add_expense,
 wanderlog_list_expenses, wanderlog_edit_expense, wanderlog_remove_expense,
 wanderlog_update_trip_dates, and wanderlog_rename_day only when the user asks
 to change an existing live Wanderlog trip. Add lodging with wanderlog_add_hotel
